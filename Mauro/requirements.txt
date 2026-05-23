@@ -1,0 +1,20 @@
+# Dependencias del proyecto de replicacion Helmholtz 2D (PINNs).
+# Versiones probadas en Python 3.13.
+
+# Backend numerico principal de las PINN: red, autograd, optimizadores.
+torch>=2.5.0
+
+# Numerica clasica: arrays, algebra lineal densa y dispersa, FFT.
+numpy>=2.0
+scipy>=1.13
+
+# Plots.
+matplotlib>=3.8
+# Solo para histogramas/distribuciones de gradientes (estilo Figura 1 paper).
+seaborn>=0.13
+
+# Manejo de tablas resumen (tabla.csv, tabla.md).
+pandas>=2.0
+
+# Configs YAML (un YAML por experimento, version-control friendly).
+pyyaml>=6.0
