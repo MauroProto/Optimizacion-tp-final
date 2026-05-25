@@ -11,6 +11,12 @@ barra metalica. Se comparan:
 
 No se implementa la arquitectura nueva del paper (`M3/M4`).
 
+Reportes:
+
+- `reporte.tex` / `reporte.pdf`: reporte principal del experimento.
+- `reporte_paper_core.tex` / `reporte_paper_core.pdf`: resumen del paper,
+  ideas centrales y trazabilidad hacia nuestro proyecto.
+
 ## Entorno
 
 ```bash
@@ -61,6 +67,8 @@ Los resultados quedan en `outputs/`. Los plots principales son:
 - `comparacion_semillas.png`: variabilidad con tres semillas.
 - `paper_*.png`: figuras de comunicacion inspiradas en el paper.
 - `examen_*.png`: analogos de los graficos del notebook de examen.
+- `reporte_paper_core.pdf`: reporte LaTeX especifico sobre el paper y su
+  aplicacion al proyecto.
 
 ## Problema fisico
 

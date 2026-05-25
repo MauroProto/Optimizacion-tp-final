@@ -672,6 +672,7 @@ Compilar reporte LaTeX:
 
 ```bash
 tectonic reporte.tex
+tectonic reporte_paper_core.tex
 ```
 
 ## 14. Archivos de codigo
@@ -687,4 +688,6 @@ tectonic reporte.tex
 - `analisis_sensibilidad.py`: postproceso de estabilidad de regimenes.
 - `plots_examen.py`: postproceso con graficos analogos al notebook de examen.
 - `reporte.tex`: reporte LaTeX compilable con Tectonic.
+- `reporte_paper_core.tex`: reporte LaTeX que resume el paper, sus ideas
+  centrales y su aplicacion al problema de calor 1D.
 - `reporte.md`: resumen narrativo en Markdown.
