@@ -1,0 +1,5 @@
+regimen,modelo,width,depth,lr,batch,adaptive_beta,iters,error_l2,lambda_ic_final,lambda_bc_final,tiempo_s,observacion
+bayes_corto_validado_3000,M1,48,5,0.0010165558775187275,384,0.7632496037584393,3000,0.216009,1.0,1.0,82.972117,PINN base con arquitectura del mejor trial corto
+bayes_corto_validado_3000,M2,48,5,0.0010165558775187275,384,0.7632496037584393,3000,0.181748,777183.613131,882945.983506,93.594056,El beta bajo acelero lambdas hasta ~1e6
+paper_conservador_3000,M1,50,3,0.001,256,0.9,3000,0.29313407484379533,1.0,1.0,134.4701570210018,PINN base de la corrida final
+paper_conservador_3000,M2,50,3,0.001,256,0.9,3000,0.10291221862214016,219148.36289667423,276036.6833245801,421.2253234390082,Regimen final mas estable y mejor error

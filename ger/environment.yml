@@ -1,0 +1,19 @@
+name: tp-optimizacion-ger
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - numpy
+  - matplotlib
+  - pandas
+  - scipy
+  - seaborn
+  - tqdm
+  - optuna
+  - pyyaml
+  - tectonic
+  - pytorch
+  - cpuonly

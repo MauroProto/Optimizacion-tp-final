@@ -11,6 +11,11 @@ Mauro/.venv/
 Mauro/outputs/
 outputs/
 
+# En este trabajo alternativo se versionan los outputs finales porque forman
+# parte del reporte entregable.
+!ger/outputs/
+!ger/outputs/**
+
 # Caches y temporales de Python.
 __pycache__/
 *.pyc

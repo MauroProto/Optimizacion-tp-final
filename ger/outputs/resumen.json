@@ -1,0 +1,65 @@
+{
+  "problema": {
+    "length_m": 1.0,
+    "diffusivity_m2_s": 0.0001,
+    "tau_final": 0.25,
+    "t_final_s": 2500.0,
+    "modes": [
+      [
+        1,
+        1.0
+      ],
+      [
+        3,
+        0.5
+      ],
+      [
+        5,
+        0.25
+      ]
+    ]
+  },
+  "config": {
+    "mode": "M1",
+    "layers": [
+      2,
+      50,
+      50,
+      50,
+      1
+    ],
+    "iterations": 3000,
+    "batch_residual": 256,
+    "batch_initial": 256,
+    "batch_boundary": 256,
+    "lr": 0.001,
+    "optimizer": "adam",
+    "momentum": 0.9,
+    "weight_decay": 0.0,
+    "seed": 0,
+    "adaptive_every": 10,
+    "adaptive_beta": 0.9,
+    "log_every": 500,
+    "decay_rate": 0.9,
+    "decay_steps": 1000,
+    "device": "cpu",
+    "threads": 16
+  },
+  "metricas": [
+    {
+      "modelo": "M1",
+      "error_l2": 0.29313407484379533,
+      "tiempo_s": 134.4701570210018,
+      "lambda_ic_final": 1.0,
+      "lambda_bc_final": 1.0
+    },
+    {
+      "modelo": "M2",
+      "error_l2": 0.10291221862214016,
+      "tiempo_s": 421.2253234390082,
+      "lambda_ic_final": 219148.36289667423,
+      "lambda_bc_final": 276036.6833245801
+    }
+  ],
+  "mejora_M1_a_M2": 2.8483894212803564
+}
