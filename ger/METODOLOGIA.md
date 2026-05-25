@@ -21,7 +21,8 @@ arquitectura nueva que proponen los autores. Se replica el nucleo metodologico:
 - Analisis de gradientes por capa.
 - Evolucion de perdidas y pesos adaptativos.
 - Comparacion contra solucion analitica.
-- Busqueda bayesiana de hiperparametros.
+- Busqueda bayesiana de hiperparametros para `M2` y, como extra de ablacion,
+  para `M1B`.
 - Comparacion de optimizadores con presupuesto fijo.
 - Graficos analogos al notebook de examen: objetivo por iteracion/trial,
   convergencia y trayectorias 2D cuando existe un espacio interpretable.
@@ -287,6 +288,21 @@ Corrida final:
 - Actualizacion cada `10` iteraciones.
 - Valores iniciales: `lambda_ic = 1`, `lambda_bc = 1`.
 
+### 6.3 M1B: PINN clasica optimizada
+
+`M1B` no es un modelo nuevo del paper. Es la misma formulacion clasica de `M1`,
+pero con hiperparametros elegidos mediante una busqueda bayesiana independiente:
+
+```text
+L_M1B = L_res + L_ic + L_bc
+lambda_ic = 1
+lambda_bc = 1
+```
+
+Se agrego para responder una pregunta de ablacion: cuanto mejora una PINN
+clasica si se optimizan sus hiperparametros, y cuanto de la mejora de `M2`
+persiste aun contra esa M1 optimizada.
+
 ## 7. Optimizacion y entrenamiento
 
 ### 7.1 Semilla
@@ -371,6 +387,8 @@ conda run --no-capture-output -n tp-optimizacion-ger \
 
 ## 8. Busqueda bayesiana de hiperparametros
 
+### 8.1 Busqueda principal M2
+
 Se uso Optuna con sampler TPE:
 
 ```text
@@ -441,6 +459,93 @@ Las figuras `outputs/validacion_regimenes.png` y
 `outputs/sensibilidad_regimenes.png` documentan esta diferencia entre optimizar
 un presupuesto corto y validar estabilidad a mas iteraciones.
 
+### 8.2 Busqueda extra M1B
+
+Para no comparar `M2` solamente contra una `M1` que usa hiperparametros
+optimizados para `M2`, se hizo una busqueda separada sobre `M1`. Esta busqueda
+no forma parte del paper; es una prueba de sensibilidad propia del proyecto.
+
+```text
+sampler = TPESampler(seed=0, multivariate=True)
+direction = minimize
+objective = error_L2_rel en grilla 90 x 90
+modelo evaluado = M1
+```
+
+Espacio de busqueda:
+
+```text
+width  in {24, 32, 48, 64, 80}
+depth  in [2, 5] entero
+lr     log-uniforme en [1e-4, 3e-3]
+batch  in {128, 256, 384}
+```
+
+Presupuesto usado:
+
+```text
+trials = 100
+iterations por trial = 800
+threads = 16
+storage = sqlite:///outputs/optuna_calor_1d_m1.db
+```
+
+Comando usado:
+
+```bash
+conda run --no-capture-output -n tp-optimizacion-ger \
+  python experimento.py bayes-m1 \
+  --trials 100 --target-trials --search-iters 800 \
+  --storage sqlite:///outputs/optuna_calor_1d_m1.db \
+  --study-name calor_1d_m1_100 --threads 16
+```
+
+Mejor trial corto:
+
+```text
+trial = 91
+error_L2_rel corto = 0.2629274589
+width = 48
+depth = 5
+lr = 0.0010009286342457578
+batch = 128
+```
+
+Como en `M2`, el mejor trial corto no fue el mejor al validar a `3000`
+iteraciones. Se reentrenaron los 6 mejores trials cortos:
+
+```bash
+conda run --no-capture-output -n tp-optimizacion-ger \
+  python validar_m1b.py --top-k 6 --iters 3000 --threads 16
+```
+
+Mejor regimen M1B validado:
+
+```text
+trial = 83
+error_L2_rel corto = 0.2771569814
+error_L2_rel validado = 0.1845979044
+width = 48
+depth = 5
+lr = 0.0020996352226311
+batch = 128
+```
+
+La corrida final M1B se evaluo en la misma grilla `180 x 180` que M1/M2:
+
+```bash
+conda run --no-capture-output -n tp-optimizacion-ger \
+  python experimento.py m1b \
+  --iters 3000 --log-every 500 --nx 180 --nt 180 --threads 16
+```
+
+Resultado final:
+
+```text
+M1B error_L2_rel = 0.1821036631
+tiempo = 343.35 s
+```
+
 ## 9. Comparacion de optimizadores
 
 Se comparo el modo `M2` con presupuesto fijo, no una busqueda completa por
@@ -502,10 +607,24 @@ M2 error_L2_rel = 0.0285351083
 mejora M1 -> M2 = 9.26x
 ```
 
+Comparacion extra contra M1 optimizada:
+
+```text
+M1  error_L2_rel = 0.2643327358
+M1B error_L2_rel = 0.1821036631
+M2  error_L2_rel = 0.0285351083
+mejora M1 -> M1B = 1.45x
+brecha M1B -> M2 = 6.38x
+```
+
+La mejora de `M1B` muestra que el tuning de hiperparametros ayuda a la PINN
+clasica, pero no alcanza a explicar la mejora de `M2`.
+
 Pesos finales:
 
 ```text
 M1: lambda_ic = 1, lambda_bc = 1
+M1B: lambda_ic = 1, lambda_bc = 1
 M2: lambda_ic = 154084.83, lambda_bc = 251158.37
 ```
 
@@ -513,6 +632,7 @@ Tiempo de entrenamiento:
 
 ```text
 M1: 208.34 s
+M1B: 343.35 s
 M2: 211.49 s
 ```
 
@@ -531,17 +651,25 @@ M2 error_L2_rel = 0.055138 +/- 0.023188
 Archivos principales:
 
 - `outputs/M1_solucion.png`: exacta, prediccion M1 y error absoluto.
+- `outputs/M1B_solucion.png`: exacta, prediccion M1B y error absoluto.
 - `outputs/M2_solucion.png`: exacta, prediccion M2 y error absoluto.
 - `outputs/M1_historia.png`: perdidas y lambdas de M1.
+- `outputs/M1B_historia.png`: perdidas y lambdas de M1B.
 - `outputs/M2_historia.png`: perdidas y lambdas de M2.
 - `outputs/M1_gradientes.png`: histogramas de gradientes por capa para M1.
+- `outputs/M1B_gradientes.png`: histogramas de gradientes por capa para M1B.
 - `outputs/M2_gradientes.png`: histogramas de gradientes por capa para M2.
 - `outputs/comparacion_modelos.png`: barras de error L2 para M1/M2.
+- `outputs/comparacion_modelos_m1b.png`: barras de error L2 para M1/M2/M1B.
 - `outputs/cortes_temporales.png`: perfiles espaciales en tiempos fijos.
 - `outputs/bayes_historia.png`: evolucion de trials y mejor acumulado.
 - `outputs/bayes_parametros.png`: error vs parametros de busqueda.
 - `outputs/bayes_heatmap_arquitectura.png`: mejor error por ancho/profundidad.
+- `outputs/bayes_m1_historia.png`: evolucion de trials M1B.
+- `outputs/bayes_m1_parametros.png`: error M1B vs parametros de busqueda.
+- `outputs/bayes_m1_heatmap_arquitectura.png`: mejor error M1B por arquitectura.
 - `outputs/validacion_regimenes.png`: validacion larga de mejores trials.
+- `outputs/validacion_m1b.png`: validacion larga de mejores trials M1.
 - `outputs/sensibilidad_regimenes.png`: relacion entre error corto y error largo.
 - `outputs/comparacion_semillas.png`: robustez con tres semillas.
 - `outputs/paper_comparacion_soluciones.png`: comparacion tipo paper exacta/M1/M2.
@@ -552,17 +680,27 @@ Archivos principales:
   analogo a `f(x_k)` del examen.
 - `outputs/examen_bayes_trayectoria_lr_beta.png`: trayectoria de Optuna sobre
   contornos interpolados en el plano `log10(lr)`-`beta`.
+- `outputs/examen_bayes_m1_convergencia.png`: objetivo de Optuna para M1B.
+- `outputs/examen_bayes_m1_trayectoria_lr_width.png`: trayectoria M1B en el plano
+  `log10(lr)`-`width`.
 - `outputs/examen_optimizadores_lr_error.png`: sensibilidad de optimizadores al
   learning rate y ranking con presupuesto fijo.
 
 Tablas:
 
 - `outputs/metricas_modelos.csv`
+- `outputs/metricas_modelos_m1b.csv`
+- `outputs/metricas_m1b.csv`
 - `outputs/resumen.json`
+- `outputs/resumen_m1b.json`
 - `outputs/bayes_trials.csv`
 - `outputs/bayes_mejor.json`
+- `outputs/bayes_m1_trials.csv`
+- `outputs/bayes_m1_mejor.json`
 - `outputs/validacion_regimenes.csv`
 - `outputs/validacion_regimenes_mejor.json`
+- `outputs/validacion_m1b.csv`
+- `outputs/validacion_m1b_mejor.json`
 - `outputs/metricas_semillas.csv`
 - `outputs/metricas_semillas_resumen.csv`
 - `outputs/sensibilidad_regimenes.csv`
@@ -596,6 +734,10 @@ contornos interpolan `log10(error_L2)`. Tambien se genero
 observado, y `examen_optimizadores_lr_error.png`, que resume la sensibilidad de
 Adam, AdamW, SGD y Adam+LBFGS al learning rate.
 
+Para la busqueda `M1B`, como no existe `adaptive_beta`, la trayectoria 2D se
+grafico en el plano `log10(lr)`-`width` y se guardo en
+`examen_bayes_m1_trayectoria_lr_width.png`.
+
 Comando de generacion:
 
 ```bash
@@ -626,6 +768,10 @@ python experimento.py bayes --trials 100 --target-trials --search-iters 800 \
   --storage sqlite:///outputs/optuna_calor_1d.db --study-name calor_1d_m2_100 \
   --threads 16
 python validar_regimenes.py --top-k 6 --iters 3000 --threads 16
+python experimento.py bayes-m1 --trials 100 --target-trials --search-iters 800 \
+  --storage sqlite:///outputs/optuna_calor_1d_m1.db --study-name calor_1d_m1_100 \
+  --threads 16
+python validar_m1b.py --top-k 6 --iters 3000 --threads 16
 ```
 
 Ejecutar comparacion principal:
@@ -635,6 +781,8 @@ python experimento.py todos \
   --iters 3000 --batch 256 --width 80 --depth 3 \
   --lr 0.0020667030862179673 --adaptive-beta 0.9609402971992413 \
   --log-every 500 --nx 180 --nt 180 --threads 16
+python experimento.py m1b \
+  --iters 3000 --log-every 500 --nx 180 --nt 180 --threads 16
 ```
 
 Ejecutar semillas extra:
@@ -685,6 +833,7 @@ tectonic reporte_paper_core.tex
 - `graficos.py`: genera figuras de solucion, historia, gradientes, bayes,
   optimizadores y cortes temporales.
 - `experimento.py`: CLI principal.
+- `validar_m1b.py`: validacion larga de los mejores trials M1 para elegir M1B.
 - `analisis_sensibilidad.py`: postproceso de estabilidad de regimenes.
 - `plots_examen.py`: postproceso con graficos analogos al notebook de examen.
 - `reporte.tex`: reporte LaTeX compilable con Tectonic.

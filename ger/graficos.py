@@ -138,8 +138,17 @@ def plot_gradient_norms(snapshots: dict[str, dict[str, list[np.ndarray]]], path:
                 )
     df = pd.DataFrame(rows)
     terms = [("res", "L_res"), ("ic", "L_ic"), ("bc", "L_bc")]
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True, constrained_layout=True)
-    for ax, model in zip(axes, ["M1", "M2"]):
+    models = list(snapshots.keys())
+    fig, axes = plt.subplots(
+        1,
+        len(models),
+        figsize=(6 * len(models), 4),
+        sharey=True,
+        constrained_layout=True,
+    )
+    if len(models) == 1:
+        axes = [axes]
+    for ax, model in zip(axes, models):
         sub = df[df["modelo"] == model]
         for term, label in terms:
             tsub = sub[sub["termino"] == term]
@@ -149,7 +158,7 @@ def plot_gradient_norms(snapshots: dict[str, dict[str, list[np.ndarray]]], path:
         ax.set_title(f"Gradientes medios por capa - {model}")
         ax.grid(alpha=0.25)
     axes[0].set_ylabel("mean(|grad|)")
-    axes[1].legend()
+    axes[-1].legend()
     fig.savefig(path, dpi=160)
     plt.close(fig)
 
@@ -216,7 +225,7 @@ def plot_optimizer_comparison(df: pd.DataFrame, path: Path) -> None:
     plt.close(fig)
 
 
-def plot_bayes_trials(df: pd.DataFrame, out_dir: Path) -> None:
+def plot_bayes_trials(df: pd.DataFrame, out_dir: Path, stem: str = "bayes", title: str = "Busqueda bayesiana") -> None:
     ensure_dir(out_dir)
     ordered = df.sort_values("number")
     best_so_far = ordered["value"].cummin()
@@ -227,9 +236,9 @@ def plot_bayes_trials(df: pd.DataFrame, out_dir: Path) -> None:
     ax.set_yscale("log")
     ax.set_xlabel("trial")
     ax.set_ylabel("error relativo L2")
-    ax.set_title("Busqueda bayesiana - historia")
+    ax.set_title(f"{title} - historia")
     ax.legend()
-    fig.savefig(out_dir / "bayes_historia.png", dpi=160)
+    fig.savefig(out_dir / f"{stem}_historia.png", dpi=160)
     plt.close(fig)
 
     param_cols = [c for c in df.columns if c.startswith("params_")]
@@ -245,7 +254,7 @@ def plot_bayes_trials(df: pd.DataFrame, out_dir: Path) -> None:
         ax.set_xlabel(col.replace("params_", ""))
         ax.set_ylabel("error L2")
         ax.grid(alpha=0.25)
-    fig.savefig(out_dir / "bayes_parametros.png", dpi=160)
+    fig.savefig(out_dir / f"{stem}_parametros.png", dpi=160)
     plt.close(fig)
 
     if {"params_width", "params_depth"}.issubset(df.columns):
@@ -268,5 +277,5 @@ def plot_bayes_trials(df: pd.DataFrame, out_dir: Path) -> None:
                 if np.isfinite(val):
                     ax.text(j, i, f"{val:.1e}", ha="center", va="center", color="white")
         fig.colorbar(im, ax=ax, label="error L2")
-        fig.savefig(out_dir / "bayes_heatmap_arquitectura.png", dpi=160)
+        fig.savefig(out_dir / f"{stem}_heatmap_arquitectura.png", dpi=160)
         plt.close(fig)

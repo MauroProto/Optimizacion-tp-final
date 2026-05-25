@@ -132,6 +132,58 @@ def plot_bayes_trajectory(df: pd.DataFrame, path: Path) -> None:
     plt.close(fig)
 
 
+def plot_bayes_m1_trajectory(df: pd.DataFrame, path: Path) -> None:
+    """Trayectoria de M1 en el plano learning-rate/ancho."""
+
+    needed = {"params_lr", "params_width", "value", "number"}
+    if not needed.issubset(df.columns):
+        raise ValueError(f"Faltan columnas para graficar trayectoria M1: {needed - set(df.columns)}")
+
+    plot_df = df.dropna(subset=list(needed)).sort_values("number").copy()
+    x = np.log10(plot_df["params_lr"].to_numpy(dtype=float))
+    y = plot_df["params_width"].to_numpy(dtype=float)
+    z = plot_df["value"].to_numpy(dtype=float)
+    log_z = np.log10(np.maximum(z, 1.0e-12))
+
+    fig, ax = plt.subplots(figsize=(7.2, 5.2), constrained_layout=True)
+    scatter = ax.scatter(
+        x,
+        y,
+        c=log_z,
+        cmap="viridis_r",
+        s=48,
+        edgecolor="black",
+        linewidth=0.35,
+        zorder=3,
+    )
+    ax.plot(x, y, color="black", linewidth=0.7, alpha=0.25, zorder=2)
+
+    best_idx = int(np.argmin(z))
+    ax.scatter(
+        x[best_idx],
+        y[best_idx],
+        marker="*",
+        s=260,
+        color="#d62728",
+        edgecolor="white",
+        linewidth=1.0,
+        label=f"mejor trial {int(plot_df.iloc[best_idx]['number'])}",
+        zorder=4,
+    )
+    ax.scatter(x[0], y[0], marker="s", s=70, color="white", edgecolor="black", label="inicio", zorder=4)
+    ax.scatter(x[-1], y[-1], marker="X", s=80, color="black", edgecolor="white", label="fin", zorder=4)
+
+    fig.colorbar(scatter, ax=ax, label="log10(error L2 corto)")
+    ax.set_xlabel("log10(learning rate)")
+    ax.set_ylabel("ancho")
+    ax.set_title("Trayectoria M1 de Optuna")
+    ax.grid(alpha=0.2)
+    ax.legend(loc="best")
+
+    fig.savefig(path, dpi=170)
+    plt.close(fig)
+
+
 def plot_optimizer_lr_error(df: pd.DataFrame, path: Path) -> None:
     """Comparacion por familia: error final contra learning rate."""
 
@@ -182,6 +234,12 @@ def main() -> None:
         trials = _complete_trials(bayes_path)
         plot_bayes_convergence(trials, OUT / "examen_bayes_convergencia.png")
         plot_bayes_trajectory(trials, OUT / "examen_bayes_trayectoria_lr_beta.png")
+
+    bayes_m1_path = OUT / "bayes_m1_trials.csv"
+    if bayes_m1_path.exists():
+        trials_m1 = _complete_trials(bayes_m1_path)
+        plot_bayes_convergence(trials_m1, OUT / "examen_bayes_m1_convergencia.png")
+        plot_bayes_m1_trajectory(trials_m1, OUT / "examen_bayes_m1_trayectoria_lr_width.png")
 
     optimizers_path = OUT / "optimizadores.csv"
     if optimizers_path.exists():

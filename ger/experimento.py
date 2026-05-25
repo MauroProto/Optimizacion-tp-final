@@ -45,6 +45,10 @@ def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
+def read_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def run_model(mode: str, args: argparse.Namespace, layers: tuple[int, ...] | None = None) -> dict:
     cfg = TrainConfig(
         mode=mode,
@@ -230,7 +234,14 @@ def command_optimizadores(args: argparse.Namespace) -> None:
     print(df)
 
 
-def command_bayes(args: argparse.Namespace) -> None:
+def run_bayes_search(
+    args: argparse.Namespace,
+    mode: str,
+    trials_name: str,
+    best_name: str,
+    plot_stem: str,
+    plot_title: str,
+) -> None:
     import optuna
 
     ensure_dir(OUT)
@@ -249,9 +260,13 @@ def command_bayes(args: argparse.Namespace) -> None:
         depth = trial.suggest_int("depth", 2, 5)
         lr = trial.suggest_float("lr", 1.0e-4, 3.0e-3, log=True)
         batch = trial.suggest_categorical("batch", [128, 256, 384])
-        adaptive_beta = trial.suggest_float("adaptive_beta", 0.75, 0.97)
+        adaptive_beta = (
+            trial.suggest_float("adaptive_beta", 0.75, 0.97)
+            if mode.upper() == "M2"
+            else args.adaptive_beta
+        )
         cfg = TrainConfig(
-            mode="M2",
+            mode=mode,
             layers=layers_from_args(depth, width),
             iterations=args.search_iters,
             batch_residual=batch,
@@ -276,21 +291,133 @@ def command_bayes(args: argparse.Namespace) -> None:
     remaining = max(args.trials - len(complete), 0) if args.target_trials else args.trials
     study.optimize(objective, n_trials=remaining, show_progress_bar=True)
     df = study.trials_dataframe()
-    df.to_csv(OUT / "bayes_trials.csv", index=False)
-    plot_bayes_trials(df, OUT)
+    df.to_csv(OUT / trials_name, index=False)
+    plot_bayes_trials(df, OUT, stem=plot_stem, title=plot_title)
 
     best = {
         "value": study.best_value,
         "params": study.best_params,
         "trial": study.best_trial.number,
     }
-    write_json(OUT / "bayes_mejor.json", best)
+    write_json(OUT / best_name, best)
     print("Mejor trial:", best)
+
+
+def command_bayes(args: argparse.Namespace) -> None:
+    run_bayes_search(
+        args,
+        mode="M2",
+        trials_name="bayes_trials.csv",
+        best_name="bayes_mejor.json",
+        plot_stem="bayes",
+        plot_title="Busqueda bayesiana M2",
+    )
+
+
+def command_bayes_m1(args: argparse.Namespace) -> None:
+    run_bayes_search(
+        args,
+        mode="M1",
+        trials_name="bayes_m1_trials.csv",
+        best_name="bayes_m1_mejor.json",
+        plot_stem="bayes_m1",
+        plot_title="Busqueda bayesiana M1",
+    )
+
+
+def load_m1b_regimen() -> dict:
+    validation_path = OUT / "validacion_m1b_mejor.json"
+    if validation_path.exists():
+        data = read_json(validation_path)
+        return {
+            "source": str(validation_path),
+            "trial": int(data["trial"]),
+            "short_error_l2": float(data["short_error_l2"]),
+            "validated_error_l2": float(data["long_error_l2"]),
+            "width": int(data["width"]),
+            "depth": int(data["depth"]),
+            "lr": float(data["lr"]),
+            "batch": int(data["batch"]),
+        }
+
+    best_path = OUT / "bayes_m1_mejor.json"
+    data = read_json(best_path)
+    params = data["params"]
+    return {
+        "source": str(best_path),
+        "trial": int(data["trial"]),
+        "short_error_l2": float(data["value"]),
+        "validated_error_l2": np.nan,
+        "width": int(params["width"]),
+        "depth": int(params["depth"]),
+        "lr": float(params["lr"]),
+        "batch": int(params["batch"]),
+    }
+
+
+def command_m1b(args: argparse.Namespace) -> None:
+    ensure_dir(OUT)
+    regimen = load_m1b_regimen()
+    m1b_args = argparse.Namespace(**vars(args))
+    m1b_args.width = regimen["width"]
+    m1b_args.depth = regimen["depth"]
+    m1b_args.lr = regimen["lr"]
+    m1b_args.batch = regimen["batch"]
+    m1b_args.optimizer = "adam"
+    m1b_args.adaptive_beta = 1.0
+
+    data = run_model("M1", m1b_args)
+    plot_solution(data["eval"], "Prediccion M1B", OUT / "M1B_solucion.png")
+    plot_history(data["train"].history, "M1B", OUT / "M1B_historia.png")
+    plot_gradient_histograms(data["snapshot"], "M1B", OUT / "M1B_gradientes.png")
+
+    row = {
+        "modelo": "M1B",
+        "error_l2": data["eval"]["rel_l2"],
+        "tiempo_s": data["train"].elapsed_s,
+        "lambda_ic_final": data["train"].lambdas["ic"],
+        "lambda_bc_final": data["train"].lambdas["bc"],
+        "trial": regimen["trial"],
+        "short_error_l2": regimen["short_error_l2"],
+        "validated_error_l2": regimen["validated_error_l2"],
+        "width": regimen["width"],
+        "depth": regimen["depth"],
+        "lr": regimen["lr"],
+        "batch": regimen["batch"],
+        "source": regimen["source"],
+    }
+    m1b_df = pd.DataFrame([row])
+    m1b_df.to_csv(OUT / "metricas_m1b.csv", index=False)
+
+    metrics_path = OUT / "metricas_modelos.csv"
+    if metrics_path.exists():
+        base = pd.read_csv(metrics_path)
+        comparison = pd.concat(
+            [base, m1b_df[["modelo", "error_l2", "tiempo_s", "lambda_ic_final", "lambda_bc_final"]]],
+            ignore_index=True,
+        )
+    else:
+        comparison = m1b_df[["modelo", "error_l2", "tiempo_s", "lambda_ic_final", "lambda_bc_final"]]
+    comparison.to_csv(OUT / "metricas_modelos_m1b.csv", index=False)
+    plot_error_bars(comparison, OUT / "comparacion_modelos_m1b.png")
+
+    write_json(
+        OUT / "resumen_m1b.json",
+        {
+            "regimen": regimen,
+            "config": asdict(data["train"].config),
+            "metricas": row,
+        },
+    )
+    print(m1b_df)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("comando", choices=["todos", "m1", "m2", "optimizadores", "bayes", "semillas"])
+    parser.add_argument(
+        "comando",
+        choices=["todos", "m1", "m2", "m1b", "optimizadores", "bayes", "bayes-m1", "semillas"],
+    )
     parser.add_argument("--iters", type=int, default=10000)
     parser.add_argument("--search-iters", type=int, default=800)
     parser.add_argument("--trials", type=int, default=100)
@@ -332,10 +459,14 @@ def main() -> None:
         plot_solution(data["eval"], "Prediccion M2", OUT / "M2_solucion.png")
         plot_history(data["train"].history, "M2", OUT / "M2_historia.png")
         plot_gradient_histograms(data["snapshot"], "M2", OUT / "M2_gradientes.png")
+    elif args.comando == "m1b":
+        command_m1b(args)
     elif args.comando == "optimizadores":
         command_optimizadores(args)
     elif args.comando == "bayes":
         command_bayes(args)
+    elif args.comando == "bayes-m1":
+        command_bayes_m1(args)
     elif args.comando == "semillas":
         command_semillas(args)
 

@@ -29,14 +29,20 @@ Modelos comparados:
 - `M2`: misma PINN, pero con pesos adaptativos para condicion inicial y borde
   calculados con estadisticas de gradientes, siguiendo el Algoritmo 1 del
   paper.
+- `M1B`: M1 optimizada con una busqueda bayesiana propia, sin pesos adaptativos.
+  Es una ablacion extra para separar tuning de hiperparametros y mejora del
+  paper.
 - Solucion analitica por separacion de variables.
 
 Resultado principal:
 
 ```text
 M1 error_L2_rel = 0.2643327358
+M1B error_L2_rel = 0.1821036631
 M2 error_L2_rel = 0.0285351083
 mejora M1 -> M2 = 9.26x
+mejora M1 -> M1B = 1.45x
+brecha M1B -> M2 = 6.38x
 ```
 
 Configuracion final:
@@ -113,11 +119,22 @@ python experimento.py bayes \
 
 python validar_regimenes.py --top-k 6 --iters 3000 --threads 16
 
+python experimento.py bayes-m1 \
+  --trials 100 --target-trials --search-iters 800 \
+  --storage sqlite:///outputs/optuna_calor_1d_m1.db \
+  --study-name calor_1d_m1_100 \
+  --threads 16
+
+python validar_m1b.py --top-k 6 --iters 3000 --threads 16
+
 python experimento.py todos \
   --iters 3000 --batch 256 --width 80 --depth 3 \
   --lr 0.0020667030862179673 \
   --adaptive-beta 0.9609402971992413 \
   --log-every 500 --nx 180 --nt 180 --threads 16
+
+python experimento.py m1b \
+  --iters 3000 --log-every 500 --nx 180 --nt 180 --threads 16
 
 python experimento.py semillas \
   --seeds 0 1 2 \
@@ -198,7 +215,7 @@ repositorio de los autores. La actualizacion ocurre cada 10 iteraciones.
 
 ## Busqueda bayesiana
 
-La busqueda de hiperparametros uso Optuna/TPE:
+La busqueda principal de hiperparametros uso Optuna/TPE sobre `M2`:
 
 ```text
 trials = 100
@@ -232,6 +249,31 @@ error validado = 0.0284171861
 Esta distincion es importante: el mejor presupuesto corto no necesariamente es
 el regimen mas estable al entrenar 3000 iteraciones.
 
+Como extra, se hizo una segunda busqueda bayesiana para `M1`, sin
+`adaptive_beta`, para construir `M1B`. Esta busqueda no pertenece al metodo del
+paper; sirve para verificar si el tuning de la red clasica alcanza a explicar la
+mejora de `M2`.
+
+```text
+objective = error_L2_rel de M1 en grilla 90 x 90
+width      in {24, 32, 48, 64, 80}
+depth      in [2, 5]
+lr         log-uniforme en [1e-4, 3e-3]
+batch      in {128, 256, 384}
+```
+
+El mejor trial corto de M1 fue el `91`, con error `0.2629275`, pero la
+validacion larga eligio el trial `83`:
+
+```text
+width = 48
+depth = 5
+lr = 0.0020996352226311
+batch = 128
+error validado = 0.1845979044
+error final 180 x 180 = 0.1821036631
+```
+
 ## Resultados adicionales
 
 Robustez con tres semillas:
@@ -253,6 +295,18 @@ SGD lr=1e-4, momentum=0.9: error_L2 = 0.220924
 
 La decision final fue usar Adam para las corridas principales.
 
+Comparacion extra con M1 optimizada:
+
+```text
+M1  error_L2_rel = 0.264333
+M1B error_L2_rel = 0.182104
+M2  error_L2_rel = 0.028535
+```
+
+M1B mejora a M1 en `1.45x`, pero queda `6.38x` por encima del error de M2. Esto
+apoya que el balance adaptativo del paper aporta mas que solo el tuning de
+hiperparametros de una PINN clasica.
+
 ## Figuras principales
 
 Figuras tipo paper:
@@ -266,20 +320,28 @@ Figuras tipo paper:
 Figuras de solucion:
 
 - `outputs/M1_solucion.png`
+- `outputs/M1B_solucion.png`
 - `outputs/M2_solucion.png`
 - `outputs/cortes_temporales.png`
 - `outputs/comparacion_modelos.png`
+- `outputs/comparacion_modelos_m1b.png`
 
 Figuras de diagnostico y busqueda:
 
 - `outputs/M1_historia.png`
+- `outputs/M1B_historia.png`
 - `outputs/M2_historia.png`
 - `outputs/M1_gradientes.png`
+- `outputs/M1B_gradientes.png`
 - `outputs/M2_gradientes.png`
 - `outputs/bayes_historia.png`
 - `outputs/bayes_parametros.png`
 - `outputs/bayes_heatmap_arquitectura.png`
+- `outputs/bayes_m1_historia.png`
+- `outputs/bayes_m1_parametros.png`
+- `outputs/bayes_m1_heatmap_arquitectura.png`
 - `outputs/validacion_regimenes.png`
+- `outputs/validacion_m1b.png`
 - `outputs/sensibilidad_regimenes.png`
 - `outputs/comparacion_semillas.png`
 - `outputs/comparacion_optimizadores.png`
@@ -288,6 +350,8 @@ Figuras inspiradas en el notebook de examen:
 
 - `outputs/examen_bayes_convergencia.png`
 - `outputs/examen_bayes_trayectoria_lr_beta.png`
+- `outputs/examen_bayes_m1_convergencia.png`
+- `outputs/examen_bayes_m1_trayectoria_lr_width.png`
 - `outputs/examen_optimizadores_lr_error.png`
 
 El notebook de examen revisado fue
@@ -300,16 +364,24 @@ parametros y esa proyeccion no seria interpretable.
 ## Tablas y archivos de salida
 
 - `outputs/metricas_modelos.csv`: errores y tiempos de M1/M2.
+- `outputs/metricas_modelos_m1b.csv`: comparacion M1/M2/M1B.
+- `outputs/metricas_m1b.csv`: corrida final M1B.
 - `outputs/resumen.json`: configuracion y resumen principal.
 - `outputs/bayes_trials.csv`: todos los trials de Optuna.
 - `outputs/bayes_mejor.json`: mejor trial corto.
+- `outputs/bayes_m1_trials.csv`: todos los trials de Optuna para M1B.
+- `outputs/bayes_m1_mejor.json`: mejor trial corto de M1B.
 - `outputs/validacion_regimenes.csv`: validacion larga de mejores trials.
 - `outputs/validacion_regimenes_mejor.json`: mejor regimen validado.
+- `outputs/validacion_m1b.csv`: validacion larga de mejores trials M1.
+- `outputs/validacion_m1b_mejor.json`: regimen M1B elegido.
+- `outputs/resumen_m1b.json`: configuracion y resumen de M1B.
 - `outputs/metricas_semillas.csv`: corridas por semilla.
 - `outputs/metricas_semillas_resumen.csv`: media y dispersion por modelo.
 - `outputs/optimizadores.csv`: comparacion de optimizadores.
 - `outputs/sensibilidad_regimenes.csv`: relacion error corto/error largo.
 - `outputs/optuna_calor_1d.db`: base SQLite de Optuna.
+- `outputs/optuna_calor_1d_m1.db`: base SQLite de Optuna para M1B.
 
 ## Estructura del codigo
 
@@ -322,6 +394,7 @@ parametros y esa proyeccion no seria interpretable.
   gradientes, Optuna y optimizadores.
 - `experimento.py`: CLI principal.
 - `validar_regimenes.py`: reentrena y valida los mejores trials de Optuna.
+- `validar_m1b.py`: reentrena y valida los mejores trials de Optuna para M1.
 - `analisis_sensibilidad.py`: postproceso de estabilidad de regimenes.
 - `plots_examen.py`: figuras analogas al notebook de examen.
 - `environment.yml` y `requirements.txt`: entorno reproducible.
@@ -347,3 +420,5 @@ Para evaluar rapidamente la entrega:
   capa al final del entrenamiento.
 - La busqueda bayesiana se hizo con presupuesto corto y luego se valido con
   corridas largas para evitar elegir un regimen inestable.
+- La optimizacion `M1B` es un extra de ablacion propio del proyecto, no una
+  propuesta de los autores del paper.

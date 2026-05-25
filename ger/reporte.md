@@ -30,6 +30,8 @@ Se comparan:
 - `M1`: PINN clasica con `L = L_res + L_ic + L_bc`.
 - `M2`: misma PINN con pesos adaptativos para `L_ic` y `L_bc` segun el
   Algoritmo 1 del paper. No se usa la arquitectura nueva `M3/M4`.
+- `M1B`: M1 optimizada con una busqueda bayesiana propia, agregada como ablacion
+  extra para separar tuning de hiperparametros y balance adaptativo.
 
 La red final principal es `[2, 80, 80, 80, 1]`, activacion `tanh`,
 inicializacion Xavier normal, sesgos cero, Adam con `lr=0.0020667`, scheduler
@@ -43,8 +45,11 @@ Corrida final validada:
 
 ```text
 M1 error_L2_rel = 0.2643327358
+M1B error_L2_rel = 0.1821036631
 M2 error_L2_rel = 0.0285351083
 mejora M1 -> M2 = 9.26x
+mejora M1 -> M1B = 1.45x
+brecha M1B -> M2 = 6.38x
 ```
 
 La busqueda bayesiana uso `100` trials. El mejor error corto fue el trial `91`
@@ -52,6 +57,11 @@ La busqueda bayesiana uso `100` trials. El mejor error corto fue el trial `91`
 `82`: `width=80`, `depth=3`, `lr=0.0020667`, `batch=256`,
 `beta=0.96094`. Con tres semillas, M2 obtuvo `0.0551 ± 0.0232` contra
 `0.2401 ± 0.0225` de M1.
+
+La busqueda extra de M1 uso el mismo presupuesto, sin `adaptive_beta`. El mejor
+trial corto fue el `91`, pero la validacion larga eligio el trial `83`:
+`width=48`, `depth=5`, `lr=0.0020996`, `batch=128`. Esa M1 optimizada (`M1B`)
+alcanzo `0.1821`, mejor que M1 pero todavia lejos de M2.
 
 Ademas se incorporaron graficos analogos al notebook de examen de la materia:
 objetivo por iteracion/trial, convergencia del mejor acumulado, trayectoria
@@ -65,12 +75,15 @@ interpretable.
 Figuras y tablas quedan en `outputs/`. Las mas importantes son:
 
 - `comparacion_modelos.png`
-- `M1_solucion.png`, `M2_solucion.png`
-- `M1_gradientes.png`, `M2_gradientes.png`
+- `comparacion_modelos_m1b.png`
+- `M1_solucion.png`, `M1B_solucion.png`, `M2_solucion.png`
+- `M1_gradientes.png`, `M1B_gradientes.png`, `M2_gradientes.png`
 - `bayes_historia.png`, `bayes_parametros.png`
-- `validacion_regimenes.png`, `comparacion_semillas.png`
+- `bayes_m1_historia.png`, `bayes_m1_parametros.png`
+- `validacion_regimenes.png`, `validacion_m1b.png`, `comparacion_semillas.png`
 - `paper_comparacion_soluciones.png`, `paper_balance_gradientes.png`
 - `sensibilidad_regimenes.png`
 - `comparacion_optimizadores.png`
 - `examen_bayes_convergencia.png`, `examen_bayes_trayectoria_lr_beta.png`
+- `examen_bayes_m1_convergencia.png`, `examen_bayes_m1_trayectoria_lr_width.png`
 - `examen_optimizadores_lr_error.png`

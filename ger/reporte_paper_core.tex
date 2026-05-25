@@ -25,7 +25,8 @@ benchmarks originales del paper, sino replicar su diagnostico central: las
 PINNs pueden fallar por desbalance de gradientes entre el residuo de la PDE y
 las restricciones fisicas. En nuestro proyecto se compara una PINN clasica
 (M1), una PINN con pesos adaptativos basados en gradientes (M2) y la solucion
-analitica de la ecuacion de calor.
+analitica de la ecuacion de calor. Como ablacion adicional, tambien se entrena
+M1B: una M1 optimizada de forma independiente, sin pesos adaptativos.
 \end{abstract}
 
 \section{Idea central del paper}
@@ -211,6 +212,10 @@ $\tanh$, inicializacion Xavier normal, Adam, 3000 iteraciones y batch 256. Los
 hiperparametros fueron seleccionados mediante 100 trials de Optuna/TPE y una
 validacion larga de los mejores regimenes.
 
+Adicionalmente, se entreno M1B para separar el efecto del tuning de
+hiperparametros del efecto del balance adaptativo. M1B mantiene
+$\lambda_{ic}=\lambda_{bc}=1$ y usa una busqueda bayesiana propia.
+
 \begin{table}[H]
 \centering
 \begin{tabular}{lrrrr}
@@ -219,11 +224,13 @@ Modelo & error $L^2$ rel. & tiempo [s] &
 $\lambda_{ic}$ final & $\lambda_{bc}$ final \\
 \midrule
 M1 & 0.264333 & 208.34 & 1.00 & 1.00 \\
+M1B & 0.182104 & 343.35 & 1.00 & 1.00 \\
 M2 & 0.028535 & 211.49 & 154084.83 & 251158.37 \\
 \bottomrule
 \end{tabular}
 \caption{Resultado principal sobre calor 1D. M2 reduce el error de M1 por
-un factor $9.26\times$.}
+un factor $9.26\times$. M1B mejora a M1 por tuning, pero queda $6.38\times$
+por encima de M2.}
 \end{table}
 
 El resultado confirma la idea operativa del paper: el reescalado adaptativo de
@@ -236,6 +243,12 @@ restriccion mucho mas debiles que la referencia del residuo.
 \centering
 \includegraphics[width=0.72\linewidth]{outputs/comparacion_modelos.png}
 \caption{Comparacion del error relativo $L^2$ entre M1 y M2.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\linewidth]{outputs/comparacion_modelos_m1b.png}
+\caption{Ablacion extra: comparacion de M1, M1B y M2.}
 \end{figure}
 
 \begin{figure}[H]
@@ -261,9 +274,9 @@ y por termino de perdida.}
 
 El paper advierte que no existe una receta fija de pesos $\lambda_i$ que sea
 transferible entre PDEs. Por eso, ademas de implementar M2, se hizo busqueda
-bayesiana de hiperparametros. El espacio explorado fue ancho de red, profundidad,
-learning rate, batch y $\beta$ adaptativo. La busqueda corta eligio como mejor
-trial al 91, pero la validacion larga selecciono el trial 82:
+bayesiana de hiperparametros. Para M2, el espacio explorado fue ancho de red,
+profundidad, learning rate, batch y $\beta$ adaptativo. La busqueda corta eligio
+como mejor trial al 91, pero la validacion larga selecciono el trial 82:
 \[
   \mathrm{width}=80,\quad
   \mathrm{depth}=3,\quad
@@ -275,6 +288,16 @@ Esta diferencia entre el mejor trial corto y el mejor regimen validado es
 coherente con el mensaje del paper: la optimizacion de PINNs debe evaluarse por
 estabilidad y error final, no solo por una perdida temprana.
 
+La busqueda extra de M1B uso el mismo presupuesto, pero sin $\beta$. El mejor
+regimen validado fue el trial 83:
+\[
+  \mathrm{width}=48,\quad
+  \mathrm{depth}=5,\quad
+  \eta=0.0020996,\quad
+  \mathrm{batch}=128,
+\]
+con error final $0.1821$ en grilla $180\times180$.
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{outputs/examen_bayes_convergencia.png}
@@ -285,6 +308,12 @@ estabilidad y error final, no solo por una perdida temprana.
 \centering
 \includegraphics[width=0.78\linewidth]{outputs/examen_bayes_trayectoria_lr_beta.png}
 \caption{Trayectoria de busqueda en el plano $\log_{10}(\eta)$-$\beta$.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\linewidth]{outputs/examen_bayes_m1_trayectoria_lr_width.png}
+\caption{Trayectoria de busqueda M1B en el plano $\log_{10}(\eta)$-ancho.}
 \end{figure}
 
 \begin{figure}[H]
@@ -305,6 +334,8 @@ mal la solucion correcta.
 En nuestro problema de calor 1D se observa el mismo patron metodologico:
 \begin{itemize}
   \item M1 usa la formulacion clasica y alcanza un error relativo $0.2643$.
+  \item M1B optimiza la M1 clasica y baja el error a $0.1821$, por lo que el
+  tuning ayuda pero no elimina la patologia.
   \item M2 usa el balance adaptativo del paper y alcanza $0.0285$.
   \item La mejora no depende de cambiar la PDE ni de usar la arquitectura nueva;
   surge de modificar la geometria efectiva de la optimizacion.

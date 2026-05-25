@@ -1,0 +1,2 @@
+modelo,error_l2,tiempo_s,lambda_ic_final,lambda_bc_final,trial,short_error_l2,validated_error_l2,width,depth,lr,batch,source
+M1B,0.18210366312195525,343.3476801229999,1.0,1.0,83,0.2771569814183507,0.1845979044097962,48,5,0.0020996352226311,128,outputs/validacion_m1b_mejor.json

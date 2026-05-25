@@ -20,11 +20,12 @@
 Se replica el nucleo metodologico de Wang, Teng y Perdikaris
 (\emph{Understanding and mitigating gradient pathologies in physics-informed
 neural networks}) sobre un problema distinto: difusion de calor unidimensional
-en una barra metalica. Se comparan una PINN clasica (M1), una PINN con balance
-adaptativo de terminos de perdida basado en estadisticas de gradientes (M2) y
-la solucion analitica del problema. No se implementa la arquitectura nueva del
-paper. Tambien se incluye busqueda bayesiana de hiperparametros y una
-comparacion de optimizadores.
+en una barra metalica. Se comparan una PINN clasica (M1), una PINN clasica
+optimizada de forma independiente (M1B), una PINN con balance adaptativo de
+terminos de perdida basado en estadisticas de gradientes (M2) y la solucion
+analitica del problema. No se implementa la arquitectura nueva del paper.
+Tambien se incluye busqueda bayesiana de hiperparametros y una comparacion de
+optimizadores.
 \end{abstract}
 
 \section{Problema fisico}
@@ -139,6 +140,11 @@ El baseline M1 minimiza
   L_{\mathrm{M1}}=L_{\mathrm{res}}+L_{\mathrm{ic}}+L_{\mathrm{bc}}.
 \end{equation}
 
+El modelo M1B usa exactamente la misma perdida que M1, pero sus hiperparametros
+se eligen con una busqueda bayesiana propia. M1B no es una mejora propuesta por
+el paper; es una ablacion agregada para separar el efecto del tuning del efecto
+del balance adaptativo.
+
 El modelo M2 usa la correccion de balance adaptativo del paper:
 \begin{equation}
   L_{\mathrm{M2}}=
@@ -157,8 +163,8 @@ y se actualizan con media movil
   \lambda_i \leftarrow
   \beta\lambda_i+(1-\beta)\widehat{\lambda}_i.
 \end{equation}
-En la corrida final se usa $\beta=0.9$. Las estadisticas se computan sobre los
-pesos de las capas lineales, como en el repositorio de los autores.
+En la corrida final se usa $\beta=0.9609403$. Las estadisticas se computan
+sobre los pesos de las capas lineales, como en el repositorio de los autores.
 
 \begin{figure}[H]
 \centering
@@ -189,8 +195,8 @@ weight decay, semilla 0, CPU y 16 threads. El scheduler es exponencial:
 El entrenamiento principal dura 3000 iteraciones y usa arquitectura
 $[2,80,80,80,1]$.
 
-La busqueda bayesiana usa Optuna/TPE con 100 trials y 800 iteraciones por trial.
-El espacio explorado fue:
+La busqueda bayesiana principal usa Optuna/TPE con 100 trials y 800 iteraciones
+por trial sobre M2. El espacio explorado fue:
 \begin{center}
 \begin{tabular}{ll}
 \toprule
@@ -205,6 +211,10 @@ $\beta$ adaptativo & uniforme en $[0.75,0.97]$ \\
 \end{tabular}
 \end{center}
 
+Para M1B se repitio la busqueda con el mismo presupuesto, pero sin
+$\beta$ adaptativo, porque M1B mantiene $\lambda_{\mathrm{ic}}=
+\lambda_{\mathrm{bc}}=1$.
+
 \section{Resultados}
 
 \begin{table}[H]
@@ -214,13 +224,18 @@ $\beta$ adaptativo & uniforme en $[0.75,0.97]$ \\
 Modelo & error $L^2$ rel. & tiempo [s] & $\lambda_{\mathrm{ic}}$ & $\lambda_{\mathrm{bc}}$ \\
 \midrule
 M1 & 0.264333 & 208.34 & 1.00 & 1.00 \\
+M1B & 0.182104 & 343.35 & 1.00 & 1.00 \\
 M2 & 0.028535 & 211.49 & 154084.83 & 251158.37 \\
 \bottomrule
 \end{tabular}
-\caption{Comparacion principal con arquitectura $[2,80,80,80,1]$ y 3000 iteraciones.}
+\caption{Comparacion principal y ablacion M1B con 3000 iteraciones. M1 y M2
+usan la arquitectura $[2,80,80,80,1]$; M1B usa la arquitectura optimizada
+$[2,48,48,48,48,48,1]$.}
 \end{table}
 
-La mejora de M1 a M2 fue $9.26\times$ en error relativo $L^2$.
+La mejora de M1 a M2 fue $9.26\times$ en error relativo $L^2$. La optimizacion
+separada de M1 produjo M1B y mejoro a M1 por $1.45\times$, pero M1B todavia
+quedo $6.38\times$ por encima del error de M2.
 
 \begin{figure}[H]
 \centering
@@ -230,8 +245,20 @@ La mejora de M1 a M2 fue $9.26\times$ en error relativo $L^2$.
 
 \begin{figure}[H]
 \centering
+\includegraphics[width=0.74\linewidth]{outputs/comparacion_modelos_m1b.png}
+\caption{Comparacion extra con M1B, la M1 optimizada sin pesos adaptativos.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
 \includegraphics[width=\linewidth]{outputs/M1_solucion.png}
 \caption{Solucion exacta, prediccion M1 y error absoluto.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{outputs/M1B_solucion.png}
+\caption{Solucion exacta, prediccion M1B y error absoluto.}
 \end{figure}
 
 \begin{figure}[H]
@@ -266,6 +293,12 @@ $L_{\mathrm{bc}}$ por capa para detectar desbalance entre terminos.
 
 \begin{figure}[H]
 \centering
+\includegraphics[width=0.82\linewidth]{outputs/M1B_gradientes.png}
+\caption{Histogramas de gradientes por capa para M1B.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
 \includegraphics[width=0.82\linewidth]{outputs/M2_gradientes.png}
 \caption{Histogramas de gradientes por capa para M2.}
 \end{figure}
@@ -277,6 +310,13 @@ validacion larga de los 6 mejores trials mostro que el mejor regimen sostenido
 fue el trial 82: $\mathrm{width}=80$, $\mathrm{depth}=3$,
 $\eta=0.0020667$, batch 256 y $\beta=0.96094$. Este regimen obtuvo error
 validado 0.02842 para M2.
+
+Para M1B se hizo otra busqueda Optuna/TPE sin $\beta$ adaptativo. El mejor trial
+corto fue el 91 ($\mathrm{width}=48$, $\mathrm{depth}=5$,
+$\eta=0.0010009$, batch 128), con error corto 0.26293. La validacion larga de
+los 6 mejores trials eligio el trial 83: $\mathrm{width}=48$,
+$\mathrm{depth}=5$, $\eta=0.0020996$ y batch 128. Ese regimen obtuvo error
+validado 0.18460 y error final 0.18210 en grilla $180\times180$.
 
 \begin{figure}[H]
 \centering
@@ -318,8 +358,32 @@ validado 0.02842 para M2.
 
 \begin{figure}[H]
 \centering
+\includegraphics[width=0.82\linewidth]{outputs/bayes_m1_historia.png}
+\caption{Historia de trials y mejor error acumulado en la busqueda bayesiana de M1B.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{outputs/bayes_m1_parametros.png}
+\caption{Error de M1B contra parametros explorados por Optuna/TPE.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\linewidth]{outputs/bayes_m1_heatmap_arquitectura.png}
+\caption{Mejor error M1B observado por ancho y profundidad.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
 \includegraphics[width=0.82\linewidth]{outputs/validacion_regimenes.png}
 \caption{Validacion larga de los mejores trials de Optuna y del regimen conservador.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.82\linewidth]{outputs/validacion_m1b.png}
+\caption{Validacion larga de los mejores trials de Optuna para M1B.}
 \end{figure}
 
 \begin{figure}[H]
@@ -361,8 +425,9 @@ Alli se grafican $f(x_k)$, $\|\nabla f(x_k)\|$ y trayectorias sobre contornos
 para una funcion objetivo de dos variables. En una PINN no hay una trayectoria
 2D natural en el espacio de pesos, porque la red tiene miles de parametros. Por
 eso se trasladaron esos graficos al espacio interpretable de hiperparametros:
-cada trial de Optuna es un punto de la trayectoria y el plano usado es
-$\log_{10}(\eta)$ contra $\beta$ adaptativo.
+cada trial de Optuna es un punto de la trayectoria. Para M2 el plano usado es
+$\log_{10}(\eta)$ contra $\beta$ adaptativo; para M1B, que no tiene
+$\beta$, se usa $\log_{10}(\eta)$ contra ancho de red.
 
 Las curvas de perdida de M1/M2 y la historia de Optuna cubren el analogo de
 $f(x_k)$. Los gradientes se documentan con histogramas y magnitudes medias por
@@ -385,6 +450,18 @@ en el plano $\log_{10}(\eta)$-$\beta$.}
 
 \begin{figure}[H]
 \centering
+\includegraphics[width=\linewidth]{outputs/examen_bayes_m1_convergencia.png}
+\caption{Analogo de $f(x_k)$ para la busqueda bayesiana de M1B.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\linewidth]{outputs/examen_bayes_m1_trayectoria_lr_width.png}
+\caption{Trayectoria de Optuna para M1B en el plano $\log_{10}(\eta)$-ancho.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
 \includegraphics[width=\linewidth]{outputs/examen_optimizadores_lr_error.png}
 \caption{Sensibilidad de los optimizadores al learning rate y ranking con presupuesto fijo.}
 \end{figure}
@@ -402,10 +479,19 @@ python experimento.py bayes --trials 100 --target-trials --search-iters 800 \
 
 python validar_regimenes.py --top-k 6 --iters 3000 --threads 16
 
+python experimento.py bayes-m1 --trials 100 --target-trials --search-iters 800 \
+  --storage sqlite:///outputs/optuna_calor_1d_m1.db --study-name calor_1d_m1_100 \
+  --threads 16
+
+python validar_m1b.py --top-k 6 --iters 3000 --threads 16
+
 python experimento.py todos \
   --iters 3000 --batch 256 --width 80 --depth 3 \
   --lr 0.0020667030862179673 --adaptive-beta 0.9609402971992413 \
   --log-every 500 --nx 180 --nt 180 --threads 16
+
+python experimento.py m1b \
+  --iters 3000 --log-every 500 --nx 180 --nt 180 --threads 16
 
 python experimento.py semillas --seeds 0 1 2 \
   --iters 3000 --batch 256 --width 80 --depth 3 \
