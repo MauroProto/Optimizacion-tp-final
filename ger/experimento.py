@@ -21,9 +21,13 @@ from graficos import (
     ensure_dir,
     plot_bayes_trials,
     plot_error_bars,
+    plot_gradient_norms,
     plot_gradient_histograms,
     plot_history,
+    plot_lambda_evolution,
     plot_optimizer_comparison,
+    plot_paper_solution_comparison,
+    plot_seed_summary,
     plot_solution,
     plot_time_slices,
 )
@@ -51,6 +55,7 @@ def run_model(mode: str, args: argparse.Namespace, layers: tuple[int, ...] | Non
         batch_boundary=args.batch,
         lr=args.lr,
         optimizer=args.optimizer,
+        momentum=args.momentum,
         seed=args.seed,
         adaptive_every=args.adaptive_every,
         adaptive_beta=args.adaptive_beta,
@@ -91,6 +96,15 @@ def command_todos(args: argparse.Namespace) -> None:
         tau_values=[0.0, DEFAULT_PROBLEM.tau_final / 8, DEFAULT_PROBLEM.tau_final / 2, DEFAULT_PROBLEM.tau_final],
         path=OUT / "cortes_temporales.png",
     )
+    plot_paper_solution_comparison(
+        {name: data["eval"] for name, data in results.items()},
+        OUT / "paper_comparacion_soluciones.png",
+    )
+    plot_gradient_norms(
+        {name: data["snapshot"] for name, data in results.items()},
+        OUT / "paper_balance_gradientes.png",
+    )
+    plot_lambda_evolution(results["M2"]["train"].history, OUT / "paper_lambda_evolucion.png")
 
     summary = {
         "problema": {
@@ -109,32 +123,100 @@ def command_todos(args: argparse.Namespace) -> None:
     print(f"Mejora M1 -> M2: {summary['mejora_M1_a_M2']:.2f}x")
 
 
-def command_optimizadores(args: argparse.Namespace) -> None:
+def command_semillas(args: argparse.Namespace) -> None:
     ensure_dir(OUT)
     rows = []
-    for opt in ["sgd", "adam", "adamw"]:
+    for seed in args.seeds:
+        for mode in ["M1", "M2"]:
+            seed_args = argparse.Namespace(**vars(args))
+            seed_args.seed = seed
+            data = run_model(mode, seed_args)
+            rows.append(
+                {
+                    "seed": seed,
+                    "modelo": mode,
+                    "error_l2": data["eval"]["rel_l2"],
+                    "tiempo_s": data["train"].elapsed_s,
+                    "lambda_ic_final": data["train"].lambdas["ic"],
+                    "lambda_bc_final": data["train"].lambdas["bc"],
+                    "iters": args.iters,
+                    "width": args.width,
+                    "depth": args.depth,
+                    "lr": args.lr,
+                    "batch": args.batch,
+                    "adaptive_beta": args.adaptive_beta,
+                }
+            )
+
+    df = pd.DataFrame(rows)
+    df.to_csv(OUT / "metricas_semillas.csv", index=False)
+    summary = (
+        df.groupby("modelo")["error_l2"]
+        .agg(["mean", "std", "min", "max", "count"])
+        .reset_index()
+    )
+    summary.to_csv(OUT / "metricas_semillas_resumen.csv", index=False)
+    plot_seed_summary(df, OUT / "comparacion_semillas.png")
+    print(df)
+    print(summary)
+
+
+def finite_or_inf(value: float) -> float:
+    return float(value) if np.isfinite(value) else float("inf")
+
+
+def command_optimizadores(args: argparse.Namespace) -> None:
+    ensure_dir(OUT)
+    candidates = [
+        {"name": "sgd_lr1e-5_m0.0", "optimizer": "sgd", "lr": 1.0e-5, "momentum": 0.0},
+        {"name": "sgd_lr3e-5_m0.5", "optimizer": "sgd", "lr": 3.0e-5, "momentum": 0.5},
+        {"name": "sgd_lr1e-4_m0.9", "optimizer": "sgd", "lr": 1.0e-4, "momentum": 0.9},
+        {"name": "adam_lr5e-4", "optimizer": "adam", "lr": 5.0e-4, "momentum": args.momentum},
+        {"name": "adam_lr1e-3", "optimizer": "adam", "lr": 1.0e-3, "momentum": args.momentum},
+        {"name": "adam_lr2e-3", "optimizer": "adam", "lr": 2.0e-3, "momentum": args.momentum},
+        {"name": "adamw_lr5e-4", "optimizer": "adamw", "lr": 5.0e-4, "momentum": args.momentum},
+        {"name": "adamw_lr1e-3", "optimizer": "adamw", "lr": 1.0e-3, "momentum": args.momentum},
+        {"name": "adamw_lr2e-3", "optimizer": "adamw", "lr": 2.0e-3, "momentum": args.momentum},
+    ]
+    rows = []
+    trained = {}
+    for cand in candidates:
         opt_args = argparse.Namespace(**vars(args))
-        opt_args.optimizer = opt
+        opt_args.optimizer = cand["optimizer"]
+        opt_args.lr = cand["lr"]
+        opt_args.momentum = cand["momentum"]
         data = run_model("M2", opt_args)
+        err = finite_or_inf(data["eval"]["rel_l2"])
         rows.append(
             {
-                "optimizador": opt,
+                "optimizador": cand["name"],
+                "familia": cand["optimizer"],
+                "lr": cand["lr"],
+                "momentum": cand["momentum"],
                 "error_l2": data["eval"]["rel_l2"],
                 "tiempo_s": data["train"].elapsed_s,
                 "lambda_ic_final": data["train"].lambdas["ic"],
                 "lambda_bc_final": data["train"].lambdas["bc"],
             }
         )
+        trained[cand["name"]] = (data, err)
 
-    if args.lbfgs_steps > 0:
-        opt_args = argparse.Namespace(**vars(args))
-        opt_args.optimizer = "adam"
-        data = run_model("M2", opt_args)
+    finite_rows = [row for row in rows if np.isfinite(row["error_l2"])]
+    best_adam = min(
+        (row for row in finite_rows if row["familia"] == "adam"),
+        key=lambda row: row["error_l2"],
+        default=None,
+    )
+    if best_adam and args.lbfgs_steps > 0:
+        data, _ = trained[best_adam["optimizador"]]
         refined = refine_with_lbfgs(data["train"], steps=args.lbfgs_steps, batch=max(args.batch, 512))
         eval_refined = evaluate_model(refined.model, problem=DEFAULT_PROBLEM, nx=args.nx, nt=args.nt)
         rows.append(
             {
-                "optimizador": f"adam+lbfgs_{args.lbfgs_steps}",
+                "optimizador": f"{best_adam['optimizador']}+lbfgs_{args.lbfgs_steps}",
+                "familia": "adam+lbfgs",
+                "lr": best_adam["lr"],
+                "momentum": best_adam["momentum"],
                 "error_l2": eval_refined["rel_l2"],
                 "tiempo_s": refined.elapsed_s,
                 "lambda_ic_final": refined.lambdas["ic"],
@@ -142,7 +224,7 @@ def command_optimizadores(args: argparse.Namespace) -> None:
             }
         )
 
-    df = pd.DataFrame(rows).sort_values("error_l2")
+    df = pd.DataFrame(rows).sort_values("error_l2", na_position="last")
     df.to_csv(OUT / "optimizadores.csv", index=False)
     plot_optimizer_comparison(df, OUT / "comparacion_optimizadores.png")
     print(df)
@@ -153,7 +235,14 @@ def command_bayes(args: argparse.Namespace) -> None:
 
     ensure_dir(OUT)
     sampler = optuna.samplers.TPESampler(seed=args.seed, multivariate=True)
-    study = optuna.create_study(direction="minimize", sampler=sampler)
+    storage = args.storage
+    study = optuna.create_study(
+        direction="minimize",
+        sampler=sampler,
+        storage=storage,
+        study_name=args.study_name,
+        load_if_exists=storage is not None,
+    )
 
     def objective(trial: optuna.Trial) -> float:
         width = trial.suggest_categorical("width", [24, 32, 48, 64, 80])
@@ -183,7 +272,9 @@ def command_bayes(args: argparse.Namespace) -> None:
         trial.set_user_attr("elapsed_s", result.elapsed_s)
         return float(eval_res["rel_l2"])
 
-    study.optimize(objective, n_trials=args.trials, show_progress_bar=True)
+    complete = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+    remaining = max(args.trials - len(complete), 0) if args.target_trials else args.trials
+    study.optimize(objective, n_trials=remaining, show_progress_bar=True)
     df = study.trials_dataframe()
     df.to_csv(OUT / "bayes_trials.csv", index=False)
     plot_bayes_trials(df, OUT)
@@ -199,23 +290,28 @@ def command_bayes(args: argparse.Namespace) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("comando", choices=["todos", "m1", "m2", "optimizadores", "bayes"])
+    parser.add_argument("comando", choices=["todos", "m1", "m2", "optimizadores", "bayes", "semillas"])
     parser.add_argument("--iters", type=int, default=10000)
-    parser.add_argument("--search-iters", type=int, default=2500)
-    parser.add_argument("--trials", type=int, default=12)
+    parser.add_argument("--search-iters", type=int, default=800)
+    parser.add_argument("--trials", type=int, default=100)
     parser.add_argument("--batch", type=int, default=256)
     parser.add_argument("--width", type=int, default=50)
     parser.add_argument("--depth", type=int, default=3)
     parser.add_argument("--lr", type=float, default=1.0e-3)
     parser.add_argument("--optimizer", choices=["adam", "adamw", "sgd"], default="adam")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     parser.add_argument("--adaptive-every", type=int, default=10)
     parser.add_argument("--adaptive-beta", type=float, default=0.9)
+    parser.add_argument("--momentum", type=float, default=0.9)
     parser.add_argument("--log-every", type=int, default=200)
     parser.add_argument("--threads", type=int, default=None)
     parser.add_argument("--nx", type=int, default=180)
     parser.add_argument("--nt", type=int, default=180)
     parser.add_argument("--lbfgs-steps", type=int, default=30)
+    parser.add_argument("--storage", default=None)
+    parser.add_argument("--study-name", default="calor_1d_m2")
+    parser.add_argument("--target-trials", action="store_true")
     return parser
 
 
@@ -240,6 +336,8 @@ def main() -> None:
         command_optimizadores(args)
     elif args.comando == "bayes":
         command_bayes(args)
+    elif args.comando == "semillas":
+        command_semillas(args)
 
 
 if __name__ == "__main__":

@@ -31,25 +31,27 @@ Se comparan:
 - `M2`: misma PINN con pesos adaptativos para `L_ic` y `L_bc` segun el
   Algoritmo 1 del paper. No se usa la arquitectura nueva `M3/M4`.
 
-La red final principal es `[2, 50, 50, 50, 1]`, activacion `tanh`,
-inicializacion Xavier normal, sesgos cero, Adam con `lr=1e-3`, scheduler
+La red final principal es `[2, 80, 80, 80, 1]`, activacion `tanh`,
+inicializacion Xavier normal, sesgos cero, Adam con `lr=0.0020667`, scheduler
 exponencial `0.9` cada `1000` pasos, `3000` iteraciones, `batch=256`, semilla
-`0`, CPU con `16` threads.
+`0`, CPU con `16` threads. Estos hiperparametros fueron elegidos tras 100
+trials de Optuna y validacion larga de los mejores regimenes.
 
 ## Resultados principales
 
-Corrida final conservadora:
+Corrida final validada:
 
 ```text
-M1 error_L2_rel = 0.2931340748
-M2 error_L2_rel = 0.1029122186
-mejora M1 -> M2 = 2.8483894213x
+M1 error_L2_rel = 0.2643327358
+M2 error_L2_rel = 0.0285351083
+mejora M1 -> M2 = 9.26x
 ```
 
-La busqueda bayesiana corta encontro un trial con `width=48`, `depth=5`,
-`lr=0.0010166`, `batch=384`, `beta=0.76325`, error corto `0.14138`. Al
-validarlo a `3000` iteraciones, los pesos adaptativos crecieron hasta orden
-`1e6`; esa sensibilidad queda documentada en `sensibilidad_regimenes.png`.
+La busqueda bayesiana uso `100` trials. El mejor error corto fue el trial `91`
+(`0.03197`), pero la validacion larga de los mejores trials eligio el trial
+`82`: `width=80`, `depth=3`, `lr=0.0020667`, `batch=256`,
+`beta=0.96094`. Con tres semillas, M2 obtuvo `0.0551 ± 0.0232` contra
+`0.2401 ± 0.0225` de M1.
 
 ## Artefactos
 
@@ -59,5 +61,7 @@ Figuras y tablas quedan en `outputs/`. Las mas importantes son:
 - `M1_solucion.png`, `M2_solucion.png`
 - `M1_gradientes.png`, `M2_gradientes.png`
 - `bayes_historia.png`, `bayes_parametros.png`
+- `validacion_regimenes.png`, `comparacion_semillas.png`
+- `paper_comparacion_soluciones.png`, `paper_balance_gradientes.png`
 - `sensibilidad_regimenes.png`
 - `comparacion_optimizadores.png`

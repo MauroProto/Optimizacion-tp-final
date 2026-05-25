@@ -205,16 +205,16 @@ donde se usa inicializacion de Glorot/Xavier y activaciones hiperbolicas.
 
 ### 4.3 Arquitectura final principal
 
-La corrida final principal usa:
+La corrida final principal validada usa:
 
 ```text
-layers = [2, 50, 50, 50, 1]
+layers = [2, 80, 80, 80, 1]
 ```
 
 Es decir:
 
 - 2 entradas (`x`, `tau`).
-- 3 capas ocultas de 50 neuronas.
+- 3 capas ocultas de 80 neuronas.
 - 1 salida escalar (`u`).
 
 La busqueda bayesiana tambien probo otras arquitecturas; ver seccion 8.
@@ -349,6 +349,9 @@ iterations = 3000
 batch_residual = 256
 batch_initial = 256
 batch_boundary = 256
+layers = [2, 80, 80, 80, 1]
+lr = 0.0020667030862179673
+adaptive_beta = 0.9609402971992413
 log_every = 500
 nx = 180
 nt = 180
@@ -359,8 +362,8 @@ Comando usado:
 ```bash
 conda run --no-capture-output -n tp-optimizacion-ger \
   python experimento.py todos \
-  --iters 3000 --batch 256 --width 50 --depth 3 \
-  --lr 0.001 --adaptive-beta 0.9 \
+  --iters 3000 --batch 256 --width 80 --depth 3 \
+  --lr 0.0020667030862179673 --adaptive-beta 0.9609402971992413 \
   --log-every 500 --nx 180 --nt 180 --threads 16
 ```
 
@@ -388,10 +391,11 @@ adaptive_beta  uniforme en [0.75, 0.97]
 Presupuesto usado:
 
 ```text
-trials = 8
+trials = 100
 iterations por trial = 800
 adaptive_every = 10
 threads = 16
+storage = sqlite:///outputs/optuna_calor_1d.db
 ```
 
 Comando usado:
@@ -399,30 +403,41 @@ Comando usado:
 ```bash
 conda run --no-capture-output -n tp-optimizacion-ger \
   python experimento.py bayes \
-  --trials 8 --search-iters 800 \
-  --adaptive-every 10 --threads 16
+  --trials 100 --target-trials --search-iters 800 \
+  --adaptive-every 10 \
+  --storage sqlite:///outputs/optuna_calor_1d.db \
+  --study-name calor_1d_m2_100 --threads 16
 ```
 
 Mejor trial corto:
 
 ```text
-trial = 3
-error_L2_rel corto = 0.1413831514
-width = 48
-depth = 5
-lr = 0.0010165558775187275
+trial = 91
+error_L2_rel corto = 0.0319695164
+width = 80
+depth = 4
+lr = 0.0014140323998533286
 batch = 384
-adaptive_beta = 0.7632496037584393
-lambda_ic_final corto = 1088.77
-lambda_bc_final corto = 2945.52
+adaptive_beta = 0.9691843191674222
 ```
 
-Observacion importante: este mejor trial fue seleccionado con solo `800`
-iteraciones. Al validarlo durante `3000` iteraciones, el `beta` bajo hizo crecer
-los pesos adaptativos hasta orden `1e6`, y el error final fue peor que el
-regimen conservador basado en `beta=0.9`.
+Observacion importante: el mejor trial corto no fue el mejor regimen validado.
+Se validaron a `3000` iteraciones los mejores 6 trials de Optuna y el regimen
+conservador del paper. El mejor validado fue `trial = 82`:
 
-La figura `outputs/sensibilidad_regimenes.png` documenta esta diferencia.
+```text
+error_L2_rel corto = 0.0642665443
+error_L2_rel validado = 0.0284171861
+width = 80
+depth = 3
+lr = 0.0020667030862179673
+batch = 256
+adaptive_beta = 0.9609402971992413
+```
+
+Las figuras `outputs/validacion_regimenes.png` y
+`outputs/sensibilidad_regimenes.png` documentan esta diferencia entre optimizar
+un presupuesto corto y validar estabilidad a mas iteraciones.
 
 ## 9. Comparacion de optimizadores
 
@@ -442,12 +457,12 @@ seed = 0
 threads = 16
 ```
 
-Optimizadores:
+Optimizadores y grilla corta:
 
-- `SGD` con momentum `0.9`.
-- `Adam`.
-- `AdamW`.
-- `Adam + LBFGS` con `10` pasos de refinamiento.
+- `SGD` con `lr in {1e-5, 3e-5, 1e-4}` y momentum `{0, 0.5, 0.9}`.
+- `Adam` con `lr in {5e-4, 1e-3, 2e-3}`.
+- `AdamW` con `lr in {5e-4, 1e-3, 2e-3}`.
+- `Adam + LBFGS` con `10` pasos sobre el mejor Adam.
 
 Comando usado:
 
@@ -463,43 +478,51 @@ conda run --no-capture-output -n tp-optimizacion-ger \
 Resultado:
 
 ```text
-Adam + LBFGS(10): error_L2 = 0.166899
-Adam:             error_L2 = 0.176340
-AdamW:            error_L2 = 0.176340
-SGD:              NaN con este learning rate y pesos adaptativos
+Adam lr=5e-4:             error_L2 = 0.167167
+AdamW lr=5e-4:            error_L2 = 0.167167
+Adam lr=5e-4 + LBFGS(10): error_L2 = 0.167244
+Adam lr=1e-3:             error_L2 = 0.176340
+SGD lr=1e-4, momentum=0.9:error_L2 = 0.220924
 ```
 
-La divergencia de SGD esta documentada como resultado experimental: bajo el
-mismo `lr=1e-3` y con el balance adaptativo activo, la dinamica produjo valores
-`NaN`. No se ajusto un learning rate especial para SGD en esta comparacion.
+Decision: Adam/AdamW fueron superiores a SGD bajo esta grilla corta. A diferencia
+de la comparacion inicial, no se descarto SGD usando solo `lr=1e-3`; se le dieron
+learning rates mas pequenos para evitar una divergencia artificial.
 
 ## 10. Resultados principales
 
-Corrida final conservadora (`3000` iteraciones, arquitectura `[2,50,50,50,1]`,
-Adam, `beta=0.9`):
+Corrida final validada (`3000` iteraciones, arquitectura `[2,80,80,80,1]`,
+Adam, `beta=0.9609402972`):
 
 ```text
-M1 error_L2_rel = 0.2931340748
-M2 error_L2_rel = 0.1029122186
-mejora M1 -> M2 = 2.8483894213x
+M1 error_L2_rel = 0.2643327358
+M2 error_L2_rel = 0.0285351083
+mejora M1 -> M2 = 9.26x
 ```
 
 Pesos finales:
 
 ```text
 M1: lambda_ic = 1, lambda_bc = 1
-M2: lambda_ic = 219148.36, lambda_bc = 276036.68
+M2: lambda_ic = 154084.83, lambda_bc = 251158.37
 ```
 
 Tiempo de entrenamiento:
 
 ```text
-M1: 134.47 s
-M2: 421.23 s
+M1: 208.34 s
+M2: 211.49 s
 ```
 
 La diferencia de tiempo se debe a que M2 calcula gradientes adicionales cada
 `10` iteraciones para estimar `lambda_hat_ic` y `lambda_hat_bc`.
+
+Con tres semillas (`0,1,2`) y el regimen final:
+
+```text
+M1 error_L2_rel = 0.240136 +/- 0.022498
+M2 error_L2_rel = 0.055138 +/- 0.023188
+```
 
 ## 11. Figuras y archivos generados
 
@@ -516,8 +539,12 @@ Archivos principales:
 - `outputs/bayes_historia.png`: evolucion de trials y mejor acumulado.
 - `outputs/bayes_parametros.png`: error vs parametros de busqueda.
 - `outputs/bayes_heatmap_arquitectura.png`: mejor error por ancho/profundidad.
-- `outputs/sensibilidad_regimenes.png`: comparacion de regimen bayesiano corto
-  validado a 3000 iteraciones vs regimen conservador.
+- `outputs/validacion_regimenes.png`: validacion larga de mejores trials.
+- `outputs/sensibilidad_regimenes.png`: relacion entre error corto y error largo.
+- `outputs/comparacion_semillas.png`: robustez con tres semillas.
+- `outputs/paper_comparacion_soluciones.png`: comparacion tipo paper exacta/M1/M2.
+- `outputs/paper_balance_gradientes.png`: magnitud media de gradientes por capa.
+- `outputs/paper_lambda_evolucion.png`: evolucion de pesos adaptativos en M2.
 - `outputs/comparacion_optimizadores.png`: comparacion de optimizadores.
 
 Tablas:
@@ -526,6 +553,10 @@ Tablas:
 - `outputs/resumen.json`
 - `outputs/bayes_trials.csv`
 - `outputs/bayes_mejor.json`
+- `outputs/validacion_regimenes.csv`
+- `outputs/validacion_regimenes_mejor.json`
+- `outputs/metricas_semillas.csv`
+- `outputs/metricas_semillas_resumen.csv`
 - `outputs/sensibilidad_regimenes.csv`
 - `outputs/optimizadores.csv`
 
@@ -549,16 +580,28 @@ python -m pip install -r requirements.txt
 Ejecutar busqueda bayesiana:
 
 ```bash
-python experimento.py bayes --trials 8 --search-iters 800 --threads 16
+python experimento.py bayes --trials 100 --target-trials --search-iters 800 \
+  --storage sqlite:///outputs/optuna_calor_1d.db --study-name calor_1d_m2_100 \
+  --threads 16
+python validar_regimenes.py --top-k 6 --iters 3000 --threads 16
 ```
 
 Ejecutar comparacion principal:
 
 ```bash
 python experimento.py todos \
-  --iters 3000 --batch 256 --width 50 --depth 3 \
-  --lr 0.001 --adaptive-beta 0.9 \
+  --iters 3000 --batch 256 --width 80 --depth 3 \
+  --lr 0.0020667030862179673 --adaptive-beta 0.9609402971992413 \
   --log-every 500 --nx 180 --nt 180 --threads 16
+```
+
+Ejecutar semillas extra:
+
+```bash
+python experimento.py semillas --seeds 0 1 2 \
+  --iters 3000 --batch 256 --width 80 --depth 3 \
+  --lr 0.0020667030862179673 --adaptive-beta 0.9609402971992413 \
+  --log-every 1000 --nx 120 --nt 120 --threads 16
 ```
 
 Ejecutar comparacion de optimizadores:
@@ -566,7 +609,7 @@ Ejecutar comparacion de optimizadores:
 ```bash
 python experimento.py optimizadores \
   --iters 1000 --batch 128 --width 32 --depth 3 \
-  --lr 0.001 --adaptive-beta 0.9 \
+  --adaptive-beta 0.9 \
   --log-every 500 --nx 120 --nt 120 \
   --lbfgs-steps 10 --threads 16
 ```

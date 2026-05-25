@@ -30,9 +30,15 @@ python -m pip install -r requirements.txt
 Desde esta carpeta:
 
 ```bash
-python experimento.py todos --iters 10000 --batch 256 --width 50 --depth 3
-python experimento.py bayes --trials 12 --search-iters 2500
-python experimento.py optimizadores --iters 4000 --batch 256
+python experimento.py bayes --trials 100 --target-trials --search-iters 800 \
+  --storage sqlite:///outputs/optuna_calor_1d.db --study-name calor_1d_m2_100
+python validar_regimenes.py --top-k 6 --iters 3000
+python experimento.py todos --iters 3000 --batch 256 --width 80 --depth 3 \
+  --lr 0.0020667030862179673 --adaptive-beta 0.9609402971992413
+python experimento.py semillas --seeds 0 1 2 --iters 3000 --batch 256 \
+  --width 80 --depth 3 --lr 0.0020667030862179673 \
+  --adaptive-beta 0.9609402971992413
+python experimento.py optimizadores --iters 1000 --batch 128 --width 32 --depth 3
 ```
 
 Los resultados quedan en `outputs/`. Los plots principales son:
@@ -43,6 +49,9 @@ Los resultados quedan en `outputs/`. Los plots principales son:
 - `comparacion_modelos.png`: error relativo contra la solucion analitica.
 - `cortes_temporales.png`: perfiles espaciales en tiempos fijos.
 - `bayes_*.png`: diagnosticos de la busqueda bayesiana.
+- `validacion_regimenes.png`: validacion larga de los mejores trials.
+- `comparacion_semillas.png`: variabilidad con tres semillas.
+- `paper_*.png`: figuras de comunicacion inspiradas en el paper.
 
 ## Problema fisico
 

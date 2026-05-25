@@ -120,7 +120,7 @@ $\tanh$. Antes del primer layer se escala la entrada a $[-1,1]^2$:
 La inicializacion es Xavier normal para pesos y cero para sesgos. La arquitectura
 principal final es
 \begin{equation}
-  [2,50,50,50,1].
+  [2,80,80,80,1].
 \end{equation}
 
 Las perdidas son
@@ -181,14 +181,15 @@ pesos adaptativos.}
 
 \section{Optimizacion e hiperparametros}
 
-La corrida principal usa Adam con learning rate inicial $10^{-3}$, sin
+La corrida principal usa Adam con learning rate inicial $0.0020667$, sin
 weight decay, semilla 0, CPU y 16 threads. El scheduler es exponencial:
 \begin{equation}
   \eta_k=\eta_0\left(0.9^{1/1000}\right)^k.
 \end{equation}
-El entrenamiento principal dura 3000 iteraciones.
+El entrenamiento principal dura 3000 iteraciones y usa arquitectura
+$[2,80,80,80,1]$.
 
-La busqueda bayesiana usa Optuna/TPE con 8 trials y 800 iteraciones por trial.
+La busqueda bayesiana usa Optuna/TPE con 100 trials y 800 iteraciones por trial.
 El espacio explorado fue:
 \begin{center}
 \begin{tabular}{ll}
@@ -212,14 +213,14 @@ $\beta$ adaptativo & uniforme en $[0.75,0.97]$ \\
 \toprule
 Modelo & error $L^2$ rel. & tiempo [s] & $\lambda_{\mathrm{ic}}$ & $\lambda_{\mathrm{bc}}$ \\
 \midrule
-M1 & 0.293134 & 134.47 & 1.00 & 1.00 \\
-M2 & 0.102912 & 421.23 & 219148.36 & 276036.68 \\
+M1 & 0.264333 & 208.34 & 1.00 & 1.00 \\
+M2 & 0.028535 & 211.49 & 154084.83 & 251158.37 \\
 \bottomrule
 \end{tabular}
-\caption{Comparacion principal con arquitectura $[2,50,50,50,1]$ y 3000 iteraciones.}
+\caption{Comparacion principal con arquitectura $[2,80,80,80,1]$ y 3000 iteraciones.}
 \end{table}
 
-La mejora de M1 a M2 fue $2.85\times$ en error relativo $L^2$.
+La mejora de M1 a M2 fue $9.26\times$ en error relativo $L^2$.
 
 \begin{figure}[H]
 \centering
@@ -245,6 +246,12 @@ La mejora de M1 a M2 fue $2.85\times$ en error relativo $L^2$.
 \caption{Cortes espaciales en tiempos adimensionales fijos.}
 \end{figure}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{outputs/paper_comparacion_soluciones.png}
+\caption{Figura resumen tipo paper: solucion exacta, M1, M2 y errores.}
+\end{figure}
+
 \section{Gradientes y sensibilidad}
 
 Los histogramas de gradientes reproducen el analisis cualitativo del paper:
@@ -263,19 +270,30 @@ $L_{\mathrm{bc}}$ por capa para detectar desbalance entre terminos.
 \caption{Histogramas de gradientes por capa para M2.}
 \end{figure}
 
-El mejor trial corto de la busqueda bayesiana tuvo
-$\mathrm{width}=48$, $\mathrm{depth}=5$, $\eta=0.0010166$,
-batch 384 y $\beta=0.76325$, con error corto 0.14138. Sin embargo, al validarlo
-por 3000 iteraciones, los pesos adaptativos crecieron hasta orden $10^6$ y el
-error final quedo en 0.18175 para M2. El regimen conservador con $\beta=0.9$
-obtuvo 0.10291. Por eso la seleccion final no se baso solo en el mejor trial
-corto, sino en validacion de estabilidad.
+El mejor trial corto de la busqueda bayesiana fue el trial 91
+($\mathrm{width}=80$, $\mathrm{depth}=4$, $\eta=0.001414$,
+batch 384 y $\beta=0.96918$), con error corto 0.03197. Sin embargo, la
+validacion larga de los 6 mejores trials mostro que el mejor regimen sostenido
+fue el trial 82: $\mathrm{width}=80$, $\mathrm{depth}=3$,
+$\eta=0.0020667$, batch 256 y $\beta=0.96094$. Este regimen obtuvo error
+validado 0.02842 para M2.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{outputs/paper_balance_gradientes.png}
+\caption{Magnitud media de gradientes por capa para M1 y M2.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\linewidth]{outputs/paper_lambda_evolucion.png}
+\caption{Evolucion de pesos adaptativos en M2, analoga al grafico de lambdas del paper.}
+\end{figure}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{outputs/sensibilidad_regimenes.png}
-\caption{Sensibilidad entre el mejor regimen bayesiano corto validado a 3000
-iteraciones y el regimen conservador final.}
+\caption{Sensibilidad entre error corto de Optuna y error validado a 3000 iteraciones.}
 \end{figure}
 
 \section{Busqueda bayesiana y optimizadores}
@@ -298,6 +316,19 @@ iteraciones y el regimen conservador final.}
 \caption{Mejor error observado por ancho y profundidad.}
 \end{figure}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.82\linewidth]{outputs/validacion_regimenes.png}
+\caption{Validacion larga de los mejores trials de Optuna y del regimen conservador.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\linewidth]{outputs/comparacion_semillas.png}
+\caption{Robustez con tres semillas. M2: $0.0551\pm0.0232$; M1:
+$0.2401\pm0.0225$.}
+\end{figure}
+
 La comparacion de optimizadores se hizo con presupuesto fijo y M2:
 \begin{table}[H]
 \centering
@@ -305,10 +336,11 @@ La comparacion de optimizadores se hizo con presupuesto fijo y M2:
 \toprule
 Optimizador & error $L^2$ rel. & tiempo [s] \\
 \midrule
-Adam + LBFGS(10) & 0.166899 & 109.02 \\
-Adam & 0.176340 & 122.15 \\
-AdamW & 0.176340 & 71.27 \\
-SGD & NaN & 116.69 \\
+Adam, lr=$5\cdot10^{-4}$ & 0.167167 & 68.63 \\
+AdamW, lr=$5\cdot10^{-4}$ & 0.167167 & 71.72 \\
+Adam lr=$5\cdot10^{-4}$ + LBFGS(10) & 0.167244 & 69.13 \\
+Adam, lr=$10^{-3}$ & 0.176340 & 69.26 \\
+SGD, lr=$10^{-4}$, momentum=0.9 & 0.220924 & 70.58 \\
 \bottomrule
 \end{tabular}
 \caption{Comparacion de optimizadores con 1000 iteraciones, batch 128 y
@@ -318,8 +350,7 @@ arquitectura $[2,32,32,32,1]$.}
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.72\linewidth]{outputs/comparacion_optimizadores.png}
-\caption{Comparacion grafica de optimizadores. SGD divergio con el learning
-rate comun usado en esta prueba.}
+\caption{Comparacion grafica de optimizadores con learning rates ajustados por familia.}
 \end{figure}
 
 \section{Reproducibilidad}
@@ -329,16 +360,25 @@ Los comandos principales fueron:
 conda env create -f environment.yml
 conda activate tp-optimizacion-ger
 
-python experimento.py bayes --trials 8 --search-iters 800 --threads 16
+python experimento.py bayes --trials 100 --target-trials --search-iters 800 \
+  --storage sqlite:///outputs/optuna_calor_1d.db --study-name calor_1d_m2_100 \
+  --threads 16
+
+python validar_regimenes.py --top-k 6 --iters 3000 --threads 16
 
 python experimento.py todos \
-  --iters 3000 --batch 256 --width 50 --depth 3 \
-  --lr 0.001 --adaptive-beta 0.9 \
+  --iters 3000 --batch 256 --width 80 --depth 3 \
+  --lr 0.0020667030862179673 --adaptive-beta 0.9609402971992413 \
   --log-every 500 --nx 180 --nt 180 --threads 16
+
+python experimento.py semillas --seeds 0 1 2 \
+  --iters 3000 --batch 256 --width 80 --depth 3 \
+  --lr 0.0020667030862179673 --adaptive-beta 0.9609402971992413 \
+  --log-every 1000 --nx 120 --nt 120 --threads 16
 
 python experimento.py optimizadores \
   --iters 1000 --batch 128 --width 32 --depth 3 \
-  --lr 0.001 --adaptive-beta 0.9 \
+  --adaptive-beta 0.9 \
   --log-every 500 --nx 120 --nt 120 \
   --lbfgs-steps 10 --threads 16
 
