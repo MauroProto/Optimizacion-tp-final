@@ -15,6 +15,19 @@ pip install -r requirements.txt
 
 ## Como correr
 
+Hay dos formas, eligen la que prefieran.
+
+### Forma 1: Jupyter Notebook (recomendado, mas didactico)
+
+```bash
+jupyter notebook TP_Helmholtz.ipynb
+```
+
+El notebook tiene todo el TP paso a paso: el problema, los samplers, la red,
+el entrenamiento, M1, M2, FD, optimizadores y grid. Con plots y outputs inline.
+
+### Forma 2: Scripts de linea de comandos
+
 ```bash
 python experimento.py todos           # M1 (baseline) + M2 (mejora) + FD
 python experimento.py m1              # solo M1
@@ -36,6 +49,8 @@ Flags utiles:
 Los resultados (plots + tabla resumen) quedan en `outputs/`.
 
 ## Archivos
+
+    TP_Helmholtz.ipynb      notebook completo con todo (forma recomendada)
 
     problema.py             la PDE, solucion exacta, samplers
     pinn.py                 la red neuronal

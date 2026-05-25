@@ -18,3 +18,7 @@ pandas>=2.0
 
 # Configs YAML (un YAML por experimento, version-control friendly).
 pyyaml>=6.0
+
+# Notebook interactivo (el TP esta tambien como TP_Helmholtz.ipynb).
+jupyter>=1.0
+ipykernel>=6.0
