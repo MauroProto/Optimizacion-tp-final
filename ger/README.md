@@ -39,7 +39,15 @@ python experimento.py semillas --seeds 0 1 2 --iters 3000 --batch 256 \
   --width 80 --depth 3 --lr 0.0020667030862179673 \
   --adaptive-beta 0.9609402971992413
 python experimento.py optimizadores --iters 1000 --batch 128 --width 32 --depth 3
+python plots_examen.py
 ```
+
+Tambien se reviso el notebook de examen en
+`/home/ger/Desktop/ejemplos_figuras_examen/jurado_german_parcial.ipynb`. Sus
+graficos de `f(x_k)` y trayectorias 2D se trasladaron al caso PINN como curvas
+de objetivo de Optuna y trayectoria sobre el plano `log10(lr)`-`beta`. La
+trayectoria 2D de pesos no se grafica literalmente porque la red tiene miles de
+parametros y ese contorno no seria interpretable.
 
 Los resultados quedan en `outputs/`. Los plots principales son:
 
@@ -52,6 +60,7 @@ Los resultados quedan en `outputs/`. Los plots principales son:
 - `validacion_regimenes.png`: validacion larga de los mejores trials.
 - `comparacion_semillas.png`: variabilidad con tres semillas.
 - `paper_*.png`: figuras de comunicacion inspiradas en el paper.
+- `examen_*.png`: analogos de los graficos del notebook de examen.
 
 ## Problema fisico
 

@@ -53,6 +53,13 @@ La busqueda bayesiana uso `100` trials. El mejor error corto fue el trial `91`
 `beta=0.96094`. Con tres semillas, M2 obtuvo `0.0551 ± 0.0232` contra
 `0.2401 ± 0.0225` de M1.
 
+Ademas se incorporaron graficos analogos al notebook de examen de la materia:
+objetivo por iteracion/trial, convergencia del mejor acumulado, trayectoria
+sobre contornos en el plano `log10(lr)`-`beta` y sensibilidad de optimizadores
+al learning rate. El contorno de trayectoria no se hizo en el espacio de pesos
+de la PINN porque ese espacio es de alta dimension y no produce una figura 2D
+interpretable.
+
 ## Artefactos
 
 Figuras y tablas quedan en `outputs/`. Las mas importantes son:
@@ -65,3 +72,5 @@ Figuras y tablas quedan en `outputs/`. Las mas importantes son:
 - `paper_comparacion_soluciones.png`, `paper_balance_gradientes.png`
 - `sensibilidad_regimenes.png`
 - `comparacion_optimizadores.png`
+- `examen_bayes_convergencia.png`, `examen_bayes_trayectoria_lr_beta.png`
+- `examen_optimizadores_lr_error.png`

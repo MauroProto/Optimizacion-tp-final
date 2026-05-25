@@ -23,6 +23,8 @@ arquitectura nueva que proponen los autores. Se replica el nucleo metodologico:
 - Comparacion contra solucion analitica.
 - Busqueda bayesiana de hiperparametros.
 - Comparacion de optimizadores con presupuesto fijo.
+- Graficos analogos al notebook de examen: objetivo por iteracion/trial,
+  convergencia y trayectorias 2D cuando existe un espacio interpretable.
 
 El problema elegido es la difusion de calor 1D en una barra metalica.
 
@@ -311,7 +313,7 @@ Corrida final principal:
 
 ```text
 optimizer = Adam
-lr inicial = 1e-3
+lr inicial = 0.0020667030862179673
 weight_decay = 0
 ```
 
@@ -546,6 +548,12 @@ Archivos principales:
 - `outputs/paper_balance_gradientes.png`: magnitud media de gradientes por capa.
 - `outputs/paper_lambda_evolucion.png`: evolucion de pesos adaptativos en M2.
 - `outputs/comparacion_optimizadores.png`: comparacion de optimizadores.
+- `outputs/examen_bayes_convergencia.png`: objetivo de Optuna y mejor acumulado,
+  analogo a `f(x_k)` del examen.
+- `outputs/examen_bayes_trayectoria_lr_beta.png`: trayectoria de Optuna sobre
+  contornos interpolados en el plano `log10(lr)`-`beta`.
+- `outputs/examen_optimizadores_lr_error.png`: sensibilidad de optimizadores al
+  learning rate y ranking con presupuesto fijo.
 
 Tablas:
 
@@ -560,7 +568,41 @@ Tablas:
 - `outputs/sensibilidad_regimenes.csv`
 - `outputs/optimizadores.csv`
 
-## 12. Reproducibilidad desde cero
+## 12. Graficos inspirados en el notebook de examen
+
+Se reviso `/home/ger/Desktop/ejemplos_figuras_examen/jurado_german_parcial.ipynb`.
+Ese notebook usa tres tipos de figuras:
+
+- `f(x_k)` contra iteracion para comparar descenso de distintos metodos.
+- `||grad f(x_k)||` en escala semilogaritmica.
+- Trayectorias sobre contornos de una funcion objetivo 2D.
+
+En este trabajo el analogo directo de `f(x_k)` son las figuras
+`M1_historia.png`, `M2_historia.png` y `bayes_historia.png`: muestran la
+evolucion de la perdida o del error objetivo. La norma de gradiente por
+iteracion no se guardo durante todas las iteraciones para no duplicar costo de
+autograd; en su lugar se replica el diagnostico central del paper con
+histogramas y magnitudes medias de gradientes por capa al final del
+entrenamiento (`M1_gradientes.png`, `M2_gradientes.png`,
+`paper_balance_gradientes.png`).
+
+La trayectoria sobre contornos no se grafica en el espacio de pesos de la red:
+la PINN tiene miles de parametros y una proyeccion 2D arbitraria seria dificil
+de defender. El traslado interpretable es al espacio de hiperparametros de
+Optuna. Por eso se genero `examen_bayes_trayectoria_lr_beta.png`, donde cada
+trial es un punto de la trayectoria en el plano `log10(lr)`-`beta` y los
+contornos interpolan `log10(error_L2)`. Tambien se genero
+`examen_bayes_convergencia.png`, con objetivo por trial y brecha al mejor
+observado, y `examen_optimizadores_lr_error.png`, que resume la sensibilidad de
+Adam, AdamW, SGD y Adam+LBFGS al learning rate.
+
+Comando de generacion:
+
+```bash
+python plots_examen.py
+```
+
+## 13. Reproducibilidad desde cero
 
 Crear entorno:
 
@@ -620,13 +662,19 @@ Generar sensibilidad de regimenes:
 python analisis_sensibilidad.py
 ```
 
+Generar graficos analogos al notebook de examen:
+
+```bash
+python plots_examen.py
+```
+
 Compilar reporte LaTeX:
 
 ```bash
 tectonic reporte.tex
 ```
 
-## 13. Archivos de codigo
+## 14. Archivos de codigo
 
 - `problema.py`: define el problema fisico, solucion analitica, condicion
   inicial, escala dimensional y grillas.
@@ -637,5 +685,6 @@ tectonic reporte.tex
   optimizadores y cortes temporales.
 - `experimento.py`: CLI principal.
 - `analisis_sensibilidad.py`: postproceso de estabilidad de regimenes.
+- `plots_examen.py`: postproceso con graficos analogos al notebook de examen.
 - `reporte.tex`: reporte LaTeX compilable con Tectonic.
 - `reporte.md`: resumen narrativo en Markdown.

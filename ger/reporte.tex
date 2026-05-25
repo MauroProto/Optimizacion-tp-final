@@ -353,6 +353,42 @@ arquitectura $[2,32,32,32,1]$.}
 \caption{Comparacion grafica de optimizadores con learning rates ajustados por familia.}
 \end{figure}
 
+\section{Graficos analogos al notebook de examen}
+
+Se reviso el notebook de examen \texttt{jurado\_german\_parcial.ipynb},
+ubicado en el directorio local \texttt{ejemplos\_figuras\_examen}.
+Alli se grafican $f(x_k)$, $\|\nabla f(x_k)\|$ y trayectorias sobre contornos
+para una funcion objetivo de dos variables. En una PINN no hay una trayectoria
+2D natural en el espacio de pesos, porque la red tiene miles de parametros. Por
+eso se trasladaron esos graficos al espacio interpretable de hiperparametros:
+cada trial de Optuna es un punto de la trayectoria y el plano usado es
+$\log_{10}(\eta)$ contra $\beta$ adaptativo.
+
+Las curvas de perdida de M1/M2 y la historia de Optuna cubren el analogo de
+$f(x_k)$. Los gradientes se documentan con histogramas y magnitudes medias por
+capa, que es el diagnostico usado por el paper. Como complemento, las siguientes
+figuras muestran convergencia de Optuna y trayectorias tipo examen en el espacio
+de busqueda.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{outputs/examen_bayes_convergencia.png}
+\caption{Analogo de $f(x_k)$ para la busqueda bayesiana: error por trial y mejor acumulado.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\linewidth]{outputs/examen_bayes_trayectoria_lr_beta.png}
+\caption{Trayectoria de Optuna sobre contornos interpolados de $\log_{10}(\mathrm{error})$
+en el plano $\log_{10}(\eta)$-$\beta$.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{outputs/examen_optimizadores_lr_error.png}
+\caption{Sensibilidad de los optimizadores al learning rate y ranking con presupuesto fijo.}
+\end{figure}
+
 \section{Reproducibilidad}
 
 Los comandos principales fueron:
@@ -383,6 +419,7 @@ python experimento.py optimizadores \
   --lbfgs-steps 10 --threads 16
 
 python analisis_sensibilidad.py
+python plots_examen.py
 tectonic reporte.tex
 \end{verbatim}
 
