@@ -1,9 +1,0 @@
-Iteraciones: 2000
-Capas: [2, 50, 50, 50, 1]
-Batch: 128, lr: 0.001, seed: 0
-
-M1 (PINN sin balance):    error L2 = 4.414e+00
-M2 (PINN con balance):    error L2 = 1.290e-01
-FD (diferencias finitas): error L2 = 1.264e-03
-
-Mejora M1 -> M2: 34.2x
